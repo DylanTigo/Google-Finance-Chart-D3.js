@@ -10,7 +10,16 @@ function generateFixedTicks(currentDate) {
 
 // Fonction principale
 async function draw() {
+
+  const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
+
+  // Parser
+  const hourFormat = d3.timeFormat("%H:%M");
   const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
+
+  // Accessor
+  const yAccessor = (d) => +d.close;
+
   // Get datas
   const data = await d3.csv("datas/1D.csv", (d) => {
     const date = parseDate(d.Datetime);
@@ -21,19 +30,11 @@ async function draw() {
     };
   });
 
-  const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
-
-  // Obtenir la date courante à partir des données
+  // Get current date
   const currentDate = data[0].date;
   const startDate = new Date(currentDate).setHours(9, 30);
   const endDate = new Date(currentDate).setHours(20, 30);
   const ticks1D = generateFixedTicks(currentDate);
-
-  const hourFormat = d3.timeFormat("%H:%M");
-  const formatInteger = d3.format(".0f");
-
-  const xAccessor = (d) => hourFormat(d.date);
-  const yAccessor = (d) => d.close;
 
   // Constants
   const margin = {
@@ -73,17 +74,16 @@ async function draw() {
   const yAxis = d3
     .axisLeft(yScale)
     .tickFormat(d3.format("d"))
-    .ticks(5)
+    .ticks(4)
     .tickSizeOuter(0);
   ctr.append("g").classed("y-axis", true).call(yAxis);
 
 
-  console.log(data);
-
   //Styling Axis
-  ctr.select(".y-axis .domain").remove();
-  ctr.selectAll(".y-axis .tick line").attr("x2", width);
-  ctr.selectAll(".tick text").style("font-size", "13px");
+  ctr.selectAll(".domain").remove();
+  ctr.selectAll(".y-axis .tick line").attr("x2", width)
+  ctr.selectAll(".y-axis .tick line").classed("chart-line", true);
+  ctr.selectAll(".tick text").style("font-size", "13px").classed("chart-text", true);
 
   // Lines
   const line = d3
@@ -94,8 +94,8 @@ async function draw() {
   ctr
     .append("path")
     .attr("fill", "none")
-    .attr("stroke", "white")
     .attr("stroke-width", 2)
+    .classed("main-line", true)
     .attr("d", line(data));
 }
 

@@ -10,32 +10,22 @@
       rel="stylesheet"
     />
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              jakarta: ["Plus Jakarta Sans", "sans-serif"],
-            },
-          },
-        },
-      };
-    </script>
+    
     <link rel="stylesheet" href="style.css" />
     <title>Finance Chart</title>
   </head>
-  <body class="bg-gray-900 font-sans text-white !font-jakarta text-sm">
-    <main class="p-3 mx-auto mt-5 max-w-2xl">
-      <div class="flex flex-col gap-1.5">
-        <h1 class="text-3xl font-medium">
-          589.95 <span class="text-gray-300 text-base">USD</span>
+  <body>
+    <main>
+      <div class="header-container">
+        <h1>
+          589.95 <span>USD</span>
         </h1>
-        <div class="flex items-center gap-0.5">
+        <div class="block1">
           <span>+78.05 (15.25%) </span>
           <span>
             <svg
-              class="size-4"
+              width="10"
+              height="10"
               version="1.1"
               viewBox="0 0 12 12"
               xmlns="http://www.w3.org/2000/svg"
@@ -48,7 +38,7 @@
           </span>
           <span> today</span>
         </div>
-        <div class="text-xs text-gray-300">
+        <div class="block2">
           <div>After hours 589.10 -0.85 (+0.14%)</div>
           <div class="mt-0.5">
             Closed: <span>Oct 11, 7:58PM EDT</span> <span>&nbsp;•&nbsp;</span>
@@ -57,64 +47,62 @@
         </div>
       </div>
 
-      <div class="mt-2.5">
-        <ul class="flex items-center">
-          <li><button type="button" class="px-4 pt-1 pb-2.5">1D</button></li>
-          <li><button type="button" class="px-4 pt-1 pb-2.5">5D</button></li>
-          <li><button type="button" class="px-4 pt-1 pb-2.5">1M</button></li>
-          <li><button type="button" class="px-4 pt-1 pb-2.5">6M</button></li>
-          <li><button type="button" class="px-4 pt-1 pb-2.5">YTD</button></li>
-          <li><button type="button" class="px-4 pt-1 pb-2.5">1Y</button></li>
-          <li><button type="button" class="px-4 pt-1 pb-2.5">5Y</button></li>
-          <li><button type="button" class="px-4 pt-1 pb-2.5">Max</button></li>
-        </ul>
+      <ul class="button-container">
+        <li><button type="button" class="px-4 pt-1 pb-2.5">1D</button></li>
+        <li><button type="button" class="px-4 pt-1 pb-2.5">5D</button></li>
+        <li><button type="button" class="px-4 pt-1 pb-2.5">1M</button></li>
+        <li><button type="button" class="px-4 pt-1 pb-2.5">6M</button></li>
+        <li><button type="button" class="px-4 pt-1 pb-2.5">YTD</button></li>
+        <li><button type="button" class="px-4 pt-1 pb-2.5">1Y</button></li>
+        <li><button type="button" class="px-4 pt-1 pb-2.5">5Y</button></li>
+        <li><button type="button" class="px-4 pt-1 pb-2.5">Max</button></li>
+      </ul>
+
+      <div id="chart">
+        <svg></svg>
       </div>
 
-      <div id="chart" class="py-5 w-full h-64">
-        <svg class="w-full h-full"></svg>
-      </div>
-
-      <div class="pl-4 flex w-full text-[13px]">
-        <ul class="grow mr-8 space-y-0.5">
+      <div class="tendance-container">
+        <ul>
           <li class="flex">
-            <span class="w-1/2">Open</span>
-            <span class="w-1/2 text-gray-300">589.95</span>
+            <span class="title">Open</span>
+            <span>589.95</span>
           </li>
           <li class="flex">
-            <span class="w-1/2">High</span>
-            <span class="w-1/2 text-gray-300">590.00</span>
+            <span class="title">High</span>
+            <span>590.00</span>
           </li>
           <li class="flex">
-            <span class="w-1/2">Low</span>
-            <span class="w-1/2 text-gray-300">589.00</span>
+            <span class="title">Low</span>
+            <span>589.00</span>
           </li>
         </ul>
-        <ul class="grow mr-8 space-y-0.5">
+        <ul>
           <li class="flex">
-            <span class="w-1/2">Mkt cap</span>
-            <span class="w-1/2 text-gray-300">589.95</span>
+            <span class="title">Mkt cap</span>
+            <span>589.95</span>
           </li>
           <li class="flex">
-            <span class="w-1/2">P/E ratio</span>
-            <span class="w-1/2 text-gray-300">590.00</span>
+            <span class="title">P/E ratio</span>
+            <span>590.00</span>
           </li>
           <li class="flex">
-            <span class="w-1/2">Div yield</span>
-            <span class="w-1/2 text-gray-300">589.00</span>
+            <span class="title">Div yield</span>
+            <span>589.00</span>
           </li>
         </ul>
-        <ul class="grow mr-8 space-y-0.5">
+        <ul>
           <li class="flex">
-            <span class="w-1/2">CDP score</span>
-            <span class="w-1/2 text-gray-300">589.95</span>
+            <span class="title">CDP score</span>
+            <span>589.95</span>
           </li>
           <li class="flex">
-            <span class="w-1/2">52-wk high</span>
-            <span class="w-1/2 text-gray-300">590.00</span>
+            <span class="title">52-wk high</span>
+            <span>590.00</span>
           </li>
           <li class="flex">
-            <span class="w-1/2">52-wk low</span>
-            <span class="w-1/2 text-gray-300">589.00</span>
+            <span class="title">52-wk low</span>
+            <span>589.00</span>
           </li>
         </ul>
       </div>
