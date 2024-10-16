@@ -1,24 +1,38 @@
+// Generate fixed hours for xAxis
+function generateFixedTicks(currentDate) {
+  const hours = [10, 12, 14, 16, 18, 20];
+  return hours.map(hour => {
+    const tick = new Date(currentDate);
+    tick.setHours(hour, 0);
+    return tick;
+  });
+}
+
+// Fonction principale
 async function draw() {
+  const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
+  // Get datas
+  const data = await d3.csv("datas/1D.csv", (d) => {
+    const date = parseDate(d.Datetime);
+    date.setHours(date.getHours()-5)
+    return {
+      date: date,
+      close: +d.Close,
+    };
+  });
+
   const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
-  const ticks1D = [
-    new Date(2022, 0, 1, 10, 00),
-    new Date(2022, 0, 1, 12, 00),
-    new Date(2022, 0, 1, 14, 00),
-    new Date(2022, 0, 1, 16, 00),
-    new Date(2022, 0, 1, 18, 00),
-    new Date(2022, 0, 1, 20, 00),
-  ];
+
+  // Obtenir la date courante à partir des données
+  const currentDate = data[0].date;
+  const startDate = new Date(currentDate).setHours(9, 30);
+  const endDate = new Date(currentDate).setHours(20, 30);
+  const ticks1D = generateFixedTicks(currentDate);
 
   const hourFormat = d3.timeFormat("%H:%M");
   const formatInteger = d3.format(".0f");
 
-  const data = await d3.csv("datas/1D.csv", (d) => {
-    return {
-      date: hourFormat(new Date(d.Datetime)),
-      close: +Number(d.Close).toFixed(2),
-    };
-  });
-  const xAccessor = (d) => d.date;
+  const xAccessor = (d) => hourFormat(d.date);
   const yAccessor = (d) => d.close;
 
   // Constants
@@ -35,8 +49,8 @@ async function draw() {
 
   // Scales
   const xScale = d3
-    .scaleTime()
-    .domain([new Date(2022, 0, 1, 9, 30), new Date(2022, 0, 1, 20, 30)])
+    .scaleUtc()
+    .domain([startDate, endDate])
     .range([0, width]);
 
   const yScale = d3
@@ -63,19 +77,19 @@ async function draw() {
     .tickSizeOuter(0);
   ctr.append("g").classed("y-axis", true).call(yAxis);
 
+
+  console.log(data);
+
   //Styling Axis
   ctr.select(".y-axis .domain").remove();
   ctr.selectAll(".y-axis .tick line").attr("x2", width);
-  ctr.selectAll(".tick text").style("font-size", "12px");
-
-  console.log(data);
-  
+  ctr.selectAll(".tick text").style("font-size", "13px");
 
   // Lines
   const line = d3
     .line()
-    .x((d) => xScale(d.date))
-    .y((d) => yScale(formatInteger(d.close)));
+    .x(d => xScale(d.date))
+    .y(d => yScale(d.close));
 
   ctr
     .append("path")
