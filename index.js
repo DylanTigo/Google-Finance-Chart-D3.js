@@ -1,3 +1,23 @@
+// Handle active button
+const buttons = document.querySelectorAll(".btn");
+buttons.forEach((button) => {
+  button.addEventListener("click", handleActiveButton);
+});
+
+function handleActiveButton(e) {
+  const active = e.target.classList.contains("active");
+  buttons.forEach((button) => {
+    button.classList.remove("active");
+  });
+  if (!active) {
+    e.target.classList.add("active");
+  }
+}
+
+
+
+
+
 // Generate fixed hours for xAxis
 function generateFixedTicks(currentDate) {
   const hours = [10, 12, 14, 16, 18, 20];
@@ -69,7 +89,7 @@ async function draw() {
     .tickFormat(hourFormat)
     .tickSizeOuter(0);
   ctr.append("g").attr("transform", `translate(0, ${height})`).call(xAxis);
-
+ 
   const yAxis = d3
     .axisLeft(yScale)
     .tickFormat(d3.format("d"))
