@@ -11,6 +11,10 @@
   --color-blue: #8AB4F8;
   --color-positive: #81C995;
   --color-negative: #FF4136;
+
+  // Gradiant colors
+  --color-gradiant-top: #f28b82cf;
+  --color-gradiant-bottom: #f28b82;
 }
 *, ::after, ::before {
   margin: 0;

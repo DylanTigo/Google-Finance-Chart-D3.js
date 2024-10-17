@@ -1,7 +1,7 @@
 // Generate fixed hours for xAxis
 function generateFixedTicks(currentDate) {
   const hours = [10, 12, 14, 16, 18, 20];
-  return hours.map(hour => {
+  return hours.map((hour) => {
     const tick = new Date(currentDate);
     tick.setHours(hour, 0);
     return tick;
@@ -10,7 +10,6 @@ function generateFixedTicks(currentDate) {
 
 // Fonction principale
 async function draw() {
-
   const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
 
   // Parser
@@ -23,7 +22,7 @@ async function draw() {
   // Get datas
   const data = await d3.csv("datas/1D.csv", (d) => {
     const date = parseDate(d.Datetime);
-    date.setHours(date.getHours()-5)
+    date.setHours(date.getHours() - 5);
     return {
       date: date,
       close: +d.Close,
@@ -49,10 +48,7 @@ async function draw() {
   const ctr = svg.append("g").attr("transform", `translate(${margin.left}, 0)`);
 
   // Scales
-  const xScale = d3
-    .scaleUtc()
-    .domain([startDate, endDate])
-    .range([0, width]);
+  const xScale = d3.scaleUtc().domain([startDate, endDate]).range([0, width]);
 
   const yScale = d3
     .scaleLinear()
@@ -78,25 +74,65 @@ async function draw() {
     .tickSizeOuter(0);
   ctr.append("g").classed("y-axis", true).call(yAxis);
 
-
   //Styling Axis
   ctr.selectAll(".domain").remove();
-  ctr.selectAll(".y-axis .tick line").attr("x2", width)
+  ctr.selectAll(".y-axis .tick line").attr("x2", width);
   ctr.selectAll(".y-axis .tick line").classed("chart-line", true);
-  ctr.selectAll(".tick text").style("font-size", "13px").classed("chart-text", true);
+  ctr
+    .selectAll(".tick text")
+    .style("font-size", "13px")
+    .classed("chart-text", true);
 
   // Lines
   const line = d3
     .line()
-    .x(d => xScale(d.date))
-    .y(d => yScale(d.close));
+    .x((d) => xScale(d.date))
+    .y((d) => yScale(d.close));
 
+  // Modifier la partie de la ligne
+  const linePath = ctr
+    .append("path")
+    .datum(data)
+    .attr("fill", "none")
+    .attr("stroke", "var(--color-positive)")
+    .attr("stroke-width", 2)
+    .attr("d", line);
+
+    
+  // Liniear gradient
+  const defs = ctr.append("defs");
+  const gradient = defs
+    .append("linearGradient")
+    .attr("id", "area-gradient")
+    .attr("x1", "0%")
+    .attr("y1", "0%")
+    .attr("x2", "0%")
+    .attr("y2", "100%");
+
+  gradient
+    .append("stop")
+    .attr("offset", "0%")
+    .attr("stop-color", "var(--color-gradiant-top)")
+    .attr("stop-opacity", 0.4);
+  gradient
+    .append("stop")
+    .attr("offset", "100%")
+    .attr("stop-color", "var(--color-gradiant-bottom)")
+    .attr("stop-opacity", 0);
+
+  // Create shape area for gradient
+  const area = d3
+    .area()
+    .x((d) => xScale(d.date))
+    .y0(height)
+    .y1((d) => yScale(d.close));
   ctr
     .append("path")
-    .attr("fill", "none")
-    .attr("stroke-width", 2)
-    .classed("main-line", true)
-    .attr("d", line(data));
+    .datum(data)
+    .attr("stroke", "none")
+    .attr("fill", "url(#area-gradient)")
+    .attr("d", area);
+
 }
 
 draw();
