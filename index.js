@@ -10,6 +10,7 @@ function generateFixedTicks(currentDate) {
 
 // Fonction principale
 async function draw() {
+
   const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
 
   // Parser
@@ -31,9 +32,13 @@ async function draw() {
 
   // Get current date
   const currentDate = data[0].date;
-  const startDate = new Date(currentDate).setHours(9, 30);
-  const endDate = new Date(currentDate).setHours(20, 30);
   const ticks1D = generateFixedTicks(currentDate);
+
+  //Scale min and max
+  const xMin = new Date(currentDate).setHours(9, 30);
+  const xMax = new Date(currentDate).setHours(20, 30);
+  const yMin = Math.floor(d3.min(data, yAccessor));
+  const yMax = Math.ceil(d3.max(data, yAccessor));
 
   // Constants
   const margin = {
@@ -47,15 +52,13 @@ async function draw() {
   const height = svg.node().clientHeight - margin.bottom;
   const ctr = svg.append("g").attr("transform", `translate(${margin.left}, 0)`);
 
+
   // Scales
-  const xScale = d3.scaleUtc().domain([startDate, endDate]).range([0, width]);
+  const xScale = d3.scaleUtc().domain([xMin, xMax]).range([0, width]);
 
   const yScale = d3
     .scaleLinear()
-    .domain([
-      Math.floor(d3.min(data, yAccessor)),
-      Math.ceil(d3.max(data, yAccessor)),
-    ])
+    .domain([yMin, yMax])
     .range([height, margin.top])
     .nice();
 
@@ -70,9 +73,10 @@ async function draw() {
   const yAxis = d3
     .axisLeft(yScale)
     .tickFormat(d3.format("d"))
-    .ticks(4)
+    .tickValues(d3.range(yMin, yMax + 1))
     .tickSizeOuter(0);
   ctr.append("g").classed("y-axis", true).call(yAxis);
+
 
   //Styling Axis
   ctr.selectAll(".domain").remove();
@@ -83,6 +87,7 @@ async function draw() {
     .style("font-size", "13px")
     .classed("chart-text", true);
 
+  
   // Lines
   const line = d3
     .line()
@@ -97,7 +102,6 @@ async function draw() {
     .attr("stroke", "var(--color-positive)")
     .attr("stroke-width", 2)
     .attr("d", line);
-
     
   // Liniear gradient
   const defs = ctr.append("defs");
