@@ -14,10 +14,6 @@ function handleActiveButton(e) {
   }
 }
 
-
-
-
-
 // Generate fixed hours for xAxis
 function generateFixedTicks(currentDate) {
   const hours = [10, 12, 14, 16, 18, 20];
@@ -30,7 +26,6 @@ function generateFixedTicks(currentDate) {
 
 // Fonction principale
 async function draw() {
-
   const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
 
   // Parser
@@ -72,7 +67,6 @@ async function draw() {
   const height = svg.node().clientHeight - margin.bottom;
   const ctr = svg.append("g").attr("transform", `translate(${margin.left}, 0)`);
 
-
   // Scales
   const xScale = d3.scaleUtc().domain([xMin, xMax]).range([0, width]);
 
@@ -89,14 +83,13 @@ async function draw() {
     .tickFormat(hourFormat)
     .tickSizeOuter(0);
   ctr.append("g").attr("transform", `translate(0, ${height})`).call(xAxis);
- 
+
   const yAxis = d3
     .axisLeft(yScale)
     .tickFormat(d3.format("d"))
     .tickValues(d3.range(yMin, yMax + 1))
     .tickSizeOuter(0);
   ctr.append("g").classed("y-axis", true).call(yAxis);
-
 
   //Styling Axis
   ctr.selectAll(".domain").remove();
@@ -107,7 +100,6 @@ async function draw() {
     .style("font-size", "13px")
     .classed("chart-text", true);
 
-  
   // Lines
   const line = d3
     .line()
@@ -122,7 +114,7 @@ async function draw() {
     .attr("stroke", "var(--color-positive)")
     .attr("stroke-width", 2)
     .attr("d", line);
-    
+
   // Liniear gradient
   const defs = ctr.append("defs");
   const gradient = defs
@@ -137,7 +129,7 @@ async function draw() {
     .append("stop")
     .attr("offset", "0%")
     .attr("stop-color", "var(--color-gradiant-top)")
-    .attr("stop-opacity", 0.4);
+    .attr("stop-opacity", 0.35);
   gradient
     .append("stop")
     .attr("offset", "100%")
@@ -157,6 +149,40 @@ async function draw() {
     .attr("fill", "url(#area-gradient)")
     .attr("d", area);
 
+  // Create the tooltips
+  const tooltip = d3.select("#chart").append("div").attr("id", "tooltip");
+  const tooltipDate = tooltip.append("span").attr("class", "date").text("Date");
+  const tooltipClose = tooltip.append("span").text("Close");
+
+  const tooltipDot = ctr
+    .append("circle")
+    .attr("r", 4)
+    .attr("fill", "white")
+    .attr("stroke", "none")
+    .style("opacity", 0)
+    .style("pointer-events", "none");
+
+  ctr
+    .append("rect")
+    .attr("width", width)
+    .attr("height", height)
+    .style("opacity", 0)
+    .on("mousemove touchmove", (event) => {
+      const [currentX, currentY] = d3.pointer(event, ctr.node());
+      const currentDate = xScale.invert(currentX);
+
+      const bisector = d3.bisector((d) => d.date).left;
+      const index = bisector(data, currentDate);
+      const currentElt = data[index - 1];
+
+      tooltipDot
+        .style("opacity", 1)
+        .attr("cx", xScale(currentElt.date))
+        .attr("cy", yScale(currentElt.close));
+      // .raise();
+
+      tooltip.style("opacity", 1);
+    });
 }
 
 draw();
