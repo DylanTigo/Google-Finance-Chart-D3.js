@@ -164,7 +164,7 @@ async function draw() {
     .append("text")
     .attr("fill", "var(--color-text-secondary)")
     .attr("x", 8)
-    .attr("y", 16);
+    .attr("y", 15);
 
   // Add tspan elements for date and close
   const tooltipClose = tooltipText
@@ -173,6 +173,7 @@ async function draw() {
   const tooltipDate = tooltipText.append("tspan");
   const space = "\u00A0";
 
+  // Green Dot on the shape
   const tooltipsDot = ctr
     .append("circle")
     .attr("r", 4)
@@ -181,11 +182,12 @@ async function draw() {
     .style("opacity", 0)
     .style("pointer-events", "none");
 
+  // Dashed Line
   const tooltipLine = ctr
     .append("line")
     .attr("x1", 0)
     .attr("x2", 0)
-    .attr("y1", margin.top*2)
+    .attr("y1", margin.top * 2)
     .attr("y2", height)
     .attr("stroke", "var(--color-text-ternary)")
     .attr("stroke-dasharray", 3)
@@ -201,6 +203,8 @@ async function draw() {
     .on("mousemove touchmove", (event) => {
       const [currentX, currentY] = d3.pointer(event, ctr.node());
       const currentDate = xScale.invert(currentX);
+      const topMarge = 12;
+      const bottomMarge = height - margin.bottom - 6;
 
       const bisector = d3.bisector((d) => d.date).left;
       const index = bisector(data, currentDate);
@@ -222,23 +226,31 @@ async function draw() {
       // Calculate tooltip dimensions for tooltip dynamic width
       const textBBox = tooltipText.node().getBBox();
       const tooltipWidth = textBBox.width + 16;
-      const tooltipHeight = 24;
+      const tooltipHeight = 22;
 
       tooltip
         .select("rect")
         .attr("width", tooltipWidth)
         .attr("height", tooltipHeight);
 
+      // Verify if the tooltip is hiding the dot
+      const isNotHiddingDot =
+        topMarge + tooltipHeight + 5 > yScale(currentElt.close) ? true : false;
+
       // Position the tooltip
       let tooltipX = xScale(currentElt.date) - tooltipWidth / 2;
       tooltipX = Math.max(-2, Math.min(width - tooltipWidth, tooltipX));
-      tooltip.attr("transform", `translate(${tooltipX}, 12)`).raise();
+      const tooltipY = isNotHiddingDot ? bottomMarge : topMarge;
+
+      tooltip.attr("transform", `translate(${tooltipX}, ${tooltipY})`).raise();
 
       //Line tooltip
       tooltipLine
         .attr("opacity", 0.7)
         .attr("x1", xScale(currentElt.date))
         .attr("x2", xScale(currentElt.date))
+        .attr("y1", isNotHiddingDot ? margin.top : margin.top * 2)
+        .attr("y2", isNotHiddingDot ? height - margin.top * 2 : height);
     });
 }
 
