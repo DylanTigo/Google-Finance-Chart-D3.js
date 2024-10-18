@@ -13,6 +13,7 @@ function handleActiveButton(e) {
     e.target.classList.add("active");
   }
 }
+const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
 
 // Generate fixed hours for xAxis
 function generateFixedTicks(currentDate) {
@@ -24,71 +25,72 @@ function generateFixedTicks(currentDate) {
   });
 }
 
-// Fonction principale
-async function draw() {
-  const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
 
-  // Parser
-  const hourFormat = d3.timeFormat("%H:%M");
-  const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
+// Parser
+const hourFormat = d3.timeFormat("%H:%M");
+const dateFormatFull = d3.timeFormat("a%, %d %b")
+const dateFormatMonth = d3.timeFormat("%d %b")
+const dateFormatYear = d3.timeFormat("%d %b %Y")
+const dateFormatMonthYear = d3.timeFormat("%b %Y")
+const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
+const yAccessor = (d) => +d.close;
 
-  // Accessor
-  const yAccessor = (d) => +d.close;
+// Constants
+const margin = {
+  top: 10,
+  bottom: 20,
+  left: 30,
+  right: 40,
+};
+const space = "\u00A0";
+const svg = d3.select("#chart svg");
+const width = svg.node().clientWidth - margin.right;
+const height = svg.node().clientHeight - margin.bottom;
+const ctr = svg.append("g").attr("transform", `translate(${margin.left}, 0)`);
 
-  // Get datas
-  const data = await d3.csv("datas/1D.csv", (d) => {
+// get Data
+async function fetchData() {
+  return d3.csv("datas/1D.csv", (d) => {
     const date = parseDate(d.Datetime);
     date.setHours(date.getHours() - 5);
-    return {
-      date: date,
-      close: +d.Close,
-    };
+    return { date, close: +d.Close };
   });
+}
 
-  // Get current date
+// Setup Scales
+function setupScales(data) {
   const currentDate = data[0].date;
-  const ticks1D = generateFixedTicks(currentDate);
-
-  //Scale min and max
   const xMin = new Date(currentDate).setHours(9, 30);
   const xMax = new Date(currentDate).setHours(20, 30);
   const yMin = Math.floor(d3.min(data, yAccessor));
   const yMax = Math.ceil(d3.max(data, yAccessor));
 
-  // Constants
-  const margin = {
-    top: 10,
-    bottom: 20,
-    left: 30,
-    right: 40,
-  };
-  const svg = d3.select("#chart svg");
-  const width = svg.node().clientWidth - margin.right;
-  const height = svg.node().clientHeight - margin.bottom;
-  const ctr = svg.append("g").attr("transform", `translate(${margin.left}, 0)`);
-
-  // Scales
   const xScale = d3.scaleUtc().domain([xMin, xMax]).range([0, width]);
-
   const yScale = d3
     .scaleLinear()
     .domain([yMin, yMax])
     .range([height, margin.top])
     .nice();
 
-  // Axis
+  return { xScale, yScale, yMin, yMax };
+}
+
+// draw Axes
+function createAxes(scales, currentDate) {
+  const ticks1D = generateFixedTicks(currentDate);
   const xAxis = d3
-    .axisBottom(xScale)
+    .axisBottom(scales.xScale)
     .tickValues(ticks1D)
     .tickFormat(hourFormat)
     .tickSizeOuter(0);
-  ctr.append("g").attr("transform", `translate(0, ${height})`).call(xAxis);
 
   const yAxis = d3
-    .axisLeft(yScale)
+    .axisLeft(scales.yScale)
     .tickFormat(d3.format("d"))
-    .tickValues(d3.range(yMin, yMax + 1))
+    .tickValues(d3.range(scales.yMin, scales.yMax + 1))
     .tickSizeOuter(0);
+
+  ctr.append("g").attr("transform", `translate(0, ${height})`).call(xAxis);
   ctr.append("g").classed("y-axis", true).call(yAxis);
 
   //Styling Axis
@@ -99,14 +101,16 @@ async function draw() {
     .selectAll(".tick text")
     .style("font-size", "13px")
     .classed("chart-text", true);
+}
 
-  // Lines
+// draw Line
+function createLineShape(data, scales) {
   const line = d3
     .line()
-    .x((d) => xScale(d.date))
-    .y((d) => yScale(d.close));
+    .x((d) => scales.xScale(d.date))
+    .y((d) => scales.yScale(d.close));
 
-  // Modifier la partie de la ligne
+  // Draw
   const linePath = ctr
     .append("path")
     .datum(data)
@@ -114,8 +118,10 @@ async function draw() {
     .attr("stroke", "var(--color-positive)")
     .attr("stroke-width", 2)
     .attr("d", line);
+}
 
-  // Liniear gradient
+// Create Shape area for gradient
+function createLinearGradient(data, scales) {
   const defs = ctr.append("defs");
   const gradient = defs
     .append("linearGradient")
@@ -139,16 +145,19 @@ async function draw() {
   // Create shape area for gradient
   const area = d3
     .area()
-    .x((d) => xScale(d.date))
+    .x((d) => scales.xScale(d.date))
     .y0(height)
-    .y1((d) => yScale(d.close));
+    .y1((d) => scales.yScale(d.close));
   ctr
     .append("path")
     .datum(data)
     .attr("stroke", "none")
     .attr("fill", "url(#area-gradient)")
     .attr("d", area);
+}
 
+// Get all tooltips Elelments
+function getTooltipElements() {
   // Create the tooltips
   const tooltip = ctr.append("g").attr("id", "tooltip").attr("opacity", "0");
 
@@ -174,7 +183,7 @@ async function draw() {
   const space = "\u00A0";
 
   // Green Dot on the shape
-  const tooltipsDot = ctr
+  const tooltipDot = ctr
     .append("circle")
     .attr("r", 4)
     .attr("fill", "var(--color-positive)")
@@ -194,6 +203,26 @@ async function draw() {
     .attr("opacity", 0)
     .style("pointer-events", "none");
 
+  return {
+    tooltip,
+    tooltipText,
+    tooltipClose,
+    tooltipDate,
+    tooltipDot,
+    tooltipLine,
+  };
+}
+
+//Handle tooltip Mouvement
+function handleTooltipmouvement(data, scales, tooltipElements) {
+  const {
+    tooltip,
+    tooltipText,
+    tooltipClose,
+    tooltipDate,
+    tooltipDot,
+    tooltipLine,
+  } = tooltipElements;
   // Add event listener to move tooltip
   ctr
     .append("rect")
@@ -202,7 +231,7 @@ async function draw() {
     .style("opacity", 0)
     .on("mousemove touchmove", (event) => {
       const [currentX, currentY] = d3.pointer(event, ctr.node());
-      const currentDate = xScale.invert(currentX);
+      const currentDate = scales.xScale.invert(currentX);
       const topMarge = 12;
       const bottomMarge = height - margin.bottom - 6;
 
@@ -210,10 +239,10 @@ async function draw() {
       const index = bisector(data, currentDate);
       const currentElt = data[index - 1];
 
-      tooltipsDot
+      tooltipDot
         .style("opacity", 1)
-        .attr("cx", xScale(currentElt.date))
-        .attr("cy", yScale(currentElt.close));
+        .attr("cx", scales.xScale(currentElt.date))
+        .attr("cy", scales.yScale(currentElt.close));
 
       tooltip.attr("opacity", 1);
 
@@ -235,10 +264,12 @@ async function draw() {
 
       // Verify if the tooltip is hiding the dot
       const isNotHiddingDot =
-        topMarge + tooltipHeight + 5 > yScale(currentElt.close) ? true : false;
+        topMarge + tooltipHeight + 5 > scales.yScale(currentElt.close)
+          ? true
+          : false;
 
       // Position the tooltip
-      let tooltipX = xScale(currentElt.date) - tooltipWidth / 2;
+      let tooltipX = scales.xScale(currentElt.date) - tooltipWidth / 2;
       tooltipX = Math.max(-2, Math.min(width - tooltipWidth, tooltipX));
       const tooltipY = isNotHiddingDot ? bottomMarge : topMarge;
 
@@ -247,11 +278,38 @@ async function draw() {
       //Line tooltip
       tooltipLine
         .attr("opacity", 0.7)
-        .attr("x1", xScale(currentElt.date))
-        .attr("x2", xScale(currentElt.date))
+        .attr("x1", scales.xScale(currentElt.date))
+        .attr("x2", scales.xScale(currentElt.date))
         .attr("y1", isNotHiddingDot ? margin.top : margin.top * 2)
         .attr("y2", isNotHiddingDot ? height - margin.top * 2 : height);
     });
+}
+
+// Main Function 
+async function draw() {
+  // Get datas
+  const data = await fetchData();
+
+  // Get current date
+  const currentDate = data[0].date;
+  const ticks1D = generateFixedTicks(currentDate);
+
+  // Get Scales
+  const scales = setupScales(data);
+
+  // Draw Axis
+  createAxes(scales, currentDate);
+
+  //Draw Line Shape
+  createLineShape(data, scales);
+
+  // Liniear gradient
+  createLinearGradient(data, scales);
+
+  // Tooltip elements
+  const tooltipElements = getTooltipElements();
+
+  handleTooltipmouvement(data, scales, tooltipElements);
 }
 
 draw();
