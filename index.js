@@ -150,14 +150,33 @@ async function draw() {
     .attr("d", area);
 
   // Create the tooltips
-  const tooltip = d3.select("#chart").append("div").attr("id", "tooltip");
-  const tooltipDate = tooltip.append("span").attr("class", "date").text("Date");
-  const tooltipClose = tooltip.append("span").text("Close");
+  const tooltip = ctr.append("g").attr("id", "tooltip").attr("opacity", "0");
 
-  const tooltipDot = ctr
+  // Background rectangle for the tooltip
+  tooltip
+    .append("rect")
+    .attr("fill", "var(--color-background-2)")
+    .attr("rx", 4)
+    .attr("ry", 4);
+
+  // Text element for date and close price
+  const tooltipText = tooltip
+    .append("text")
+    .attr("fill", "var(--color-text-secondary)")
+    .attr("x", 8)
+    .attr("y", 16);
+
+  // Add tspan elements for date and close
+  const tooltipClose = tooltipText
+    .append("tspan")
+    .style("fill", "var(--color-text-primary)");
+  const tooltipDate = tooltipText.append("tspan");
+  const space = "\u00A0";
+
+  const tooltipsDot = ctr
     .append("circle")
     .attr("r", 4)
-    .attr("fill", "white")
+    .attr("fill", "var(--color-positive)")
     .attr("stroke", "none")
     .style("opacity", 0)
     .style("pointer-events", "none");
@@ -168,6 +187,7 @@ async function draw() {
     .attr("height", height)
     .style("opacity", 0)
     .on("mousemove touchmove", (event) => {
+
       const [currentX, currentY] = d3.pointer(event, ctr.node());
       const currentDate = xScale.invert(currentX);
 
@@ -175,13 +195,36 @@ async function draw() {
       const index = bisector(data, currentDate);
       const currentElt = data[index - 1];
 
-      tooltipDot
+      tooltipsDot
         .style("opacity", 1)
         .attr("cx", xScale(currentElt.date))
         .attr("cy", yScale(currentElt.close));
-      // .raise();
 
-      tooltip.style("opacity", 1);
+      tooltip.attr("opacity", 1);
+
+      const formattedClose = currentElt.close.toFixed(2);
+      const formattedDate = hourFormat(currentElt.date);
+
+      tooltipClose.text(formattedClose + space + "USD" + space + space + space);
+      tooltipDate.text(formattedDate);
+
+      // Calculate tooltip dimensions for tooltip dynamic width
+      const textBBox = tooltipText.node().getBBox();
+      const tooltipWidth = textBBox.width + 16;
+      const tooltipHeight = 24;
+
+      tooltip
+        .select("rect")
+        .attr("width", tooltipWidth)
+        .attr("height", tooltipHeight);
+
+      // Position the tooltip
+      let tooltipX = xScale(currentElt.date) - tooltipWidth / 2;
+      const tooltipY = yScale(currentElt.close) - tooltipHeight - 10;
+
+      tooltipX = Math.max(0, Math.min(width - tooltipWidth, tooltipX));
+
+      tooltip.attr("transform", `translate(${tooltipX}, 12)`).raise()
     });
 }
 

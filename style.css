@@ -159,22 +159,11 @@ main {
 
 /* Tooltip  */
 #tooltip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   font-size: 12px;
-  padding: 8px 12px;
-  border-radius: 5px;
-  background-color: var(--color-background-2);
-  color: var(--color-text-secondary);
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-  position: absolute;
-  top: 25px;
-  left: 30px;
-  opacity: 1;
-  z-index: 10;
+  font-weight: 500;
 }
-
-#tooltip .date {
-  color: var(--color-text-primary);
+#tooltip .bg{
+  border-radius: 5px;
+  background-color: var(--color-blue);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
 }
