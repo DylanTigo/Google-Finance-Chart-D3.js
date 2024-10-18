@@ -71,7 +71,7 @@ main {
 .button-container {
   display: flex;
   align-items: center;
-  margin-top: 10px;
+  margin-top: 20px;
   list-style: none;
 }
 .button-container li {
@@ -139,6 +139,7 @@ main {
   justify-content: space-between;
   width: 100%;
   font-size: 13px;
+  padding-top: 10px;
   color: var(--color-text-secondary);
 }
 .tendance-container ul {

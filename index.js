@@ -181,13 +181,24 @@ async function draw() {
     .style("opacity", 0)
     .style("pointer-events", "none");
 
+  const tooltipLine = ctr
+    .append("line")
+    .attr("x1", 0)
+    .attr("x2", 0)
+    .attr("y1", margin.top*2)
+    .attr("y2", height)
+    .attr("stroke", "var(--color-text-ternary)")
+    .attr("stroke-dasharray", 3)
+    .attr("opacity", 0)
+    .style("pointer-events", "none");
+
+  // Add event listener to move tooltip
   ctr
     .append("rect")
     .attr("width", width)
     .attr("height", height)
     .style("opacity", 0)
     .on("mousemove touchmove", (event) => {
-
       const [currentX, currentY] = d3.pointer(event, ctr.node());
       const currentDate = xScale.invert(currentX);
 
@@ -220,11 +231,14 @@ async function draw() {
 
       // Position the tooltip
       let tooltipX = xScale(currentElt.date) - tooltipWidth / 2;
-      const tooltipY = yScale(currentElt.close) - tooltipHeight - 10;
+      tooltipX = Math.max(-2, Math.min(width - tooltipWidth, tooltipX));
+      tooltip.attr("transform", `translate(${tooltipX}, 12)`).raise();
 
-      tooltipX = Math.max(0, Math.min(width - tooltipWidth, tooltipX));
-
-      tooltip.attr("transform", `translate(${tooltipX}, 12)`).raise()
+      //Line tooltip
+      tooltipLine
+        .attr("opacity", 0.7)
+        .attr("x1", xScale(currentElt.date))
+        .attr("x2", xScale(currentElt.date))
     });
 }
 
