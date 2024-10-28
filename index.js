@@ -266,7 +266,7 @@ class StockChart {
       .area()
       .x((d) => scales.xScale(d.id))
       .y0(this.height)
-      .y1(this.height)
+      .y1(this.height);
 
     this.container
       .append("path")
@@ -314,6 +314,7 @@ class StockChart {
 
     const tooltipLine = this.container
       .append("line")
+      .classed("tooltip-line", true)
       .attr("x1", 0)
       .attr("x2", 0)
       .attr("y1", CHART_CONFIG.margin.top * 2)
@@ -352,14 +353,15 @@ class StockChart {
       .style("opacity", 0)
       .on("mousemove touchmove", (event) => {
         const [currentX] = d3.pointer(event, this.container.node());
-        const currentDate = scales.xScale.invert(currentX);
+        const currentXPosition = Math.round(scales.xScale.invert(currentX));
         const topMarge = 12;
         const bottomMarge = this.height - CHART_CONFIG.margin.bottom - 6;
 
-        const bisector = d3.bisector((d) => d.id).left;
-        const index = bisector(data, currentDate);
-        const currentElt = data[index - 1];
+        // const bisector = d3.bisector((d) => d.id).left;
+        // const index = bisector(data, currentXPosition);
+        const currentElt = data[currentXPosition];
 
+        if (currentElt === undefined) return;
         tooltipDot
           .style("opacity", 1)
           .attr("cx", scales.xScale(currentElt.id))
