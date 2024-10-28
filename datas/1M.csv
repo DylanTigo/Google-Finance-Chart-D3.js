@@ -1,10 +1,4 @@
-Metadata,Value
-Stock Symbol,AAPL
-Download Date,2024-10-12 13:57:09
-Interval,1d
-Period,1mo
-
-Date,Close
+Datetime,Close
 2024-09-12 00:00:00-04:00,222.77000427246094
 2024-09-13 00:00:00-04:00,222.5
 2024-09-16 00:00:00-04:00,216.32000732421875

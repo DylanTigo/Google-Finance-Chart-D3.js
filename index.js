@@ -1,37 +1,73 @@
-// Handle active button
-const buttons = document.querySelectorAll(".btn");
-buttons.forEach((button) => {
-  button.addEventListener("click", handleActiveButton);
-});
+// Period Configuration
+const PeriodConfig = {
+  "1d": {
+    tickFormat: d3.timeFormat("%H:%M"),
+    tooltipDateFormat: d3.timeFormat("%H:%M"),
+    dataFile: "datas/1D.csv",
+    gapTicksY: 1,
+    generateTicks: (currentDate) => {
+      const startDate = new Date(currentDate).setHours(10, 0);
+      const endDate = new Date(currentDate).setHours(20, 0);
 
-function handleActiveButton(e) {
-  const active = e.target.classList.contains("active");
-  buttons.forEach((button) => {
-    button.classList.remove("active");
-  });
-  if (!active) {
-    e.target.classList.add("active");
-  }
-}
-const filter = ["1d", "5d", "1m", "6m", "1y", "5y", "max"];
+      const tickValues = d3.timeHour
+        .range(startDate, endDate)
+        .map((d) => d.getTime());
 
-// Generate fixed hours for xAxis
-function generateFixedTicks(currentDate) {
-  const hours = [10, 12, 14, 16, 18, 20];
-  return hours.map((hour) => {
-    const tick = new Date(currentDate);
-    tick.setHours(hour, 0);
-    return tick;
-  });
-}
+      return tickValues;
+    },
+  },
+  "5d": {
+    tickFormat: d3.timeFormat("%d %b"),
+    tooltipDateFormat: d3.timeFormat("%a, %d %b %H:%M"),
+    dataFile: "datas/5D.csv",
+    gapTicksY: 3,
+    generateTicks: (startDate, endDate) => {
+      const tickValues = d3.timeDay
+        .range(startDate, endDate)
+        .filter((d) => d.getTime() !== startDate.getTime())
+        .map((d) => {
+          d.setHours(9, 30);
+          return d.getTime();
+        });
 
+      return tickValues;
+    },
+  },
+  "1m": {
+    tickFormat: d3.timeFormat("%d %b"),
+    tooltipDateFormat: d3.timeFormat("%a, %d %b"),
+    dataFile: "datas/1M.csv",
+    gapTicksY: 10,
+    generateTicks: (startDate, endDate) => {
+      const tickValues = d3.timeWeek
+        .range(startDate, endDate)
+        .filter((d) => {
+          return d.getTime() !== startDate.getTime();
+        })
+        .map((d) => d.getTime());
+
+      return tickValues;
+    },
+  },
+  "6m": {
+    tickFormat: d3.timeFormat("%b %Y"),
+    tooltipDateFormat: d3.timeFormat("%a, %d %b"),
+    dataFile: "datas/6M.csv",
+    gapTicksY: 20,
+    generateTicks: (startDate, endDate) => {
+      const tickValues = d3.timeMonth
+        .range(startDate, endDate, 2)
+        .filter((d) => {
+          return d.getTime() !== startDate.getTime();
+        })
+        .map((d) => d.getTime());
+
+      return tickValues;
+    },
+  },
+};
 
 // Parser
-const hourFormat = d3.timeFormat("%H:%M");
-const dateFormatFull = d3.timeFormat("a%, %d %b")
-const dateFormatMonth = d3.timeFormat("%d %b")
-const dateFormatYear = d3.timeFormat("%d %b %Y")
-const dateFormatMonthYear = d3.timeFormat("%b %Y")
 const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
 const yAccessor = (d) => +d.close;
 
@@ -49,45 +85,76 @@ const height = svg.node().clientHeight - margin.bottom;
 const ctr = svg.append("g").attr("transform", `translate(${margin.left}, 0)`);
 
 // get Data
-async function fetchData() {
-  return d3.csv("datas/1D.csv", (d) => {
-    const date = parseDate(d.Datetime);
-    date.setHours(date.getHours() - 5);
-    return { date, close: +d.Close };
+async function fetchData(period) {
+  return d3.csv(PeriodConfig[period].dataFile, (d, i) => {
+    const date = d.Datetime.slice(0, 19);
+    return { id: i, date: new Date(date), close: +d.Close };
   });
 }
 
-// Setup Scales
-function setupScales(data) {
-  const currentDate = data[0].date;
-  const xMin = new Date(currentDate).setHours(9, 30);
-  const xMax = new Date(currentDate).setHours(20, 30);
-  const yMin = Math.floor(d3.min(data, yAccessor));
-  const yMax = Math.ceil(d3.max(data, yAccessor));
+function generateTicksY(minData, maxData, gap) {
+  const minTick = Math.floor(minData / gap) * gap;
+  const maxTick = Math.ceil(maxData / gap) * gap;
 
-  const xScale = d3.scaleUtc().domain([xMin, xMax]).range([0, width]);
+  // Générer le tableau de ticks
+  const ticks = [];
+  for (let i = minTick; i <= maxTick; i += gap) {
+    ticks.push(i);
+  }
+  return ticks;
+}
+
+// Setup Scales
+function setupScales(data, startDate, endDate, period) {
+  let xMin;
+  let xMax;
+
+  if (period === "1d") {
+    xMin = new Date(startDate).setHours(9, 30);
+    xMax = new Date(startDate).setHours(20, 30);
+  } else {
+    xMin = startDate;
+    xMax = endDate;
+  }
+
+  const ticksY = generateTicksY(
+    d3.min(data, yAccessor),
+    d3.max(data, yAccessor),
+    PeriodConfig[period].gapTicksY
+  );
+
+  const yMin = ticksY[0];
+  const yMax = ticksY[ticksY.length - 1];
+
+  const ticksX = PeriodConfig[period].generateTicks(startDate, endDate);
+
+  const xScale = d3
+    .scaleTime()
+    .domain([xMin, xMax])
+    .range([0, width - 2]);
   const yScale = d3
     .scaleLinear()
     .domain([yMin, yMax])
     .range([height, margin.top])
     .nice();
 
-  return { xScale, yScale, yMin, yMax };
+  return { xScale, yScale, ticksX, ticksY };
 }
 
 // draw Axes
-function createAxes(scales, currentDate) {
-  const ticks1D = generateFixedTicks(currentDate);
+function createAxes(scales, period, data) {
+  const { xScale, yScale, ticksX, ticksY } = scales;
+
   const xAxis = d3
-    .axisBottom(scales.xScale)
-    .tickValues(ticks1D)
-    .tickFormat(hourFormat)
+    .axisBottom(xScale)
+    .tickValues(ticksX)
+    .tickFormat(PeriodConfig[period].tickFormat)
     .tickSizeOuter(0);
 
   const yAxis = d3
-    .axisLeft(scales.yScale)
+    .axisLeft(yScale)
     .tickFormat(d3.format("d"))
-    .tickValues(d3.range(scales.yMin, scales.yMax + 1))
+    .tickValues(ticksY)
     .tickSizeOuter(0);
 
   ctr.append("g").attr("transform", `translate(0, ${height})`).call(xAxis);
@@ -111,7 +178,7 @@ function createLineShape(data, scales) {
     .y((d) => scales.yScale(d.close));
 
   // Draw
-  const linePath = ctr
+  ctr
     .append("path")
     .datum(data)
     .attr("fill", "none")
@@ -180,7 +247,6 @@ function getTooltipElements() {
     .append("tspan")
     .style("fill", "var(--color-text-primary)");
   const tooltipDate = tooltipText.append("tspan");
-  const space = "\u00A0";
 
   // Green Dot on the shape
   const tooltipDot = ctr
@@ -247,7 +313,9 @@ function handleTooltipmouvement(data, scales, tooltipElements) {
       tooltip.attr("opacity", 1);
 
       const formattedClose = currentElt.close.toFixed(2);
-      const formattedDate = hourFormat(currentElt.date);
+      const formattedDate = PeriodConfig[period].tooltipDateFormat(
+        currentElt.date
+      );
 
       tooltipClose.text(formattedClose + space + "USD" + space + space + space);
       tooltipDate.text(formattedDate);
@@ -285,20 +353,42 @@ function handleTooltipmouvement(data, scales, tooltipElements) {
     });
 }
 
-// Main Function 
+let period = "1d";
+
+// Handle active button
+const buttons = document.querySelectorAll(".btn");
+buttons.forEach((button) => {
+  button.addEventListener("click", handleActiveButton);
+});
+
+function handleActiveButton(e) {
+  const active = e.target.classList.contains("active");
+  buttons.forEach((button) => {
+    button.classList.remove("active");
+  });
+  if (!active) {
+    e.target.classList.add("active");
+    period = e.target.dataset.period;
+  }
+
+  ctr.selectAll("*").remove();
+  draw(period);
+}
+
+// Main Function
 async function draw() {
   // Get datas
-  const data = await fetchData();
+  const data = await fetchData(period);
 
-  // Get current date
-  const currentDate = data[0].date;
-  const ticks1D = generateFixedTicks(currentDate);
+  // Get start and end date
+  const startDate = data[0].date;
+  const endDate = data[data.length - 1].date;
 
   // Get Scales
-  const scales = setupScales(data);
+  const scales = setupScales(data, startDate, endDate, period);
 
   // Draw Axis
-  createAxes(scales, currentDate);
+  createAxes(scales, period, data);
 
   //Draw Line Shape
   createLineShape(data, scales);
@@ -312,4 +402,4 @@ async function draw() {
   handleTooltipmouvement(data, scales, tooltipElements);
 }
 
-draw();
+draw(period);
