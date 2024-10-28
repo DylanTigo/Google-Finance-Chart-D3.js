@@ -1,20 +1,11 @@
 // Period Configuration
 const PeriodConfig = {
   "1d": {
-    tickFormat: d3.timeFormat("%H:%M"),
+    tickFormat: ["10:00", "12:00", "14:00", "16:00", "18:00", "20:00"],
     tooltipDateFormat: d3.timeFormat("%H:%M"),
     dataFile: "datas/1D.csv",
     gapTicksY: 1,
-    generateTicks: (currentDate) => {
-      const startDate = new Date(currentDate).setHours(10, 0);
-      const endDate = new Date(currentDate).setHours(20, 0);
-
-      const tickValues = d3.timeHour
-        .range(startDate, endDate)
-        .map((d) => d.getTime());
-
-      return tickValues;
-    },
+    tickValues: [2, 10, 18, 26, 34, 42],
   },
   "5d": {
     tickFormat: d3.timeFormat("%d %b"),
@@ -27,9 +18,8 @@ const PeriodConfig = {
         .filter((d) => d.getTime() !== startDate.getTime())
         .map((d) => {
           d.setHours(9, 30);
-          return d.getTime();
+          return new Date(d);
         });
-
       return tickValues;
     },
   },
@@ -39,14 +29,14 @@ const PeriodConfig = {
     dataFile: "datas/1M.csv",
     gapTicksY: 10,
     generateTicks: (startDate, endDate) => {
-      const tickValues = d3.timeWeek
-        .range(startDate, endDate)
-        .filter((d) => {
-          return d.getTime() !== startDate.getTime();
-        })
-        .map((d) => d.getTime());
+      const tickValues = d3.timeMonday.range(startDate, endDate).filter((d) => {
+        return d.getTime() !== startDate.getTime();
+      });
 
       return tickValues;
+    },
+    tickFinder: (data, tick) => {
+      return data.find((d) => d.date.getDay() === tick.getDay()).id;
     },
   },
   "6m": {
@@ -59,10 +49,12 @@ const PeriodConfig = {
         .range(startDate, endDate, 2)
         .filter((d) => {
           return d.getTime() !== startDate.getTime();
-        })
-        .map((d) => d.getTime());
+        });
 
       return tickValues;
+    },
+    tickFinder: (data, tick) => {
+      return data.find((d) => d.date.getMonth() === tick.getMonth()).id;
     },
   },
 };
@@ -106,15 +98,20 @@ function generateTicksY(minData, maxData, gap) {
 
 // Setup Scales
 function setupScales(data, startDate, endDate, period) {
-  let xMin;
-  let xMax;
+  let ticksX;
 
   if (period === "1d") {
-    xMin = new Date(startDate).setHours(9, 30);
-    xMax = new Date(startDate).setHours(20, 30);
+    ticksX = PeriodConfig[period].tickValues;
   } else {
-    xMin = startDate;
-    xMax = endDate;
+    const ticks = PeriodConfig[period].generateTicks(startDate, endDate);
+    ticksX = ticks.map((tick) => {
+      let idValue = data.find((d) => d.date.getTime() === tick.getTime());
+
+      if (!idValue) {
+        idValue = data.find((d) => d.date.getMonth() === tick.getMonth());
+      }
+      return idValue.id;
+    });
   }
 
   const ticksY = generateTicksY(
@@ -125,12 +122,11 @@ function setupScales(data, startDate, endDate, period) {
 
   const yMin = ticksY[0];
   const yMax = ticksY[ticksY.length - 1];
-
-  const ticksX = PeriodConfig[period].generateTicks(startDate, endDate);
+  const rangeMax = period === "1d" ? 44 : data.length - 1;
 
   const xScale = d3
-    .scaleTime()
-    .domain([xMin, xMax])
+    .scaleLinear()
+    .domain([0, rangeMax])
     .range([0, width - 2]);
   const yScale = d3
     .scaleLinear()
@@ -148,7 +144,11 @@ function createAxes(scales, period, data) {
   const xAxis = d3
     .axisBottom(xScale)
     .tickValues(ticksX)
-    .tickFormat(PeriodConfig[period].tickFormat)
+    .tickFormat((d, i) => {
+      return period === "1d"
+        ? PeriodConfig[period].tickFormat[i]
+        : PeriodConfig[period].tickFormat(data[d].date);
+    })
     .tickSizeOuter(0);
 
   const yAxis = d3
@@ -174,7 +174,7 @@ function createAxes(scales, period, data) {
 function createLineShape(data, scales) {
   const line = d3
     .line()
-    .x((d) => scales.xScale(d.date))
+    .x((d) => scales.xScale(d.id))
     .y((d) => scales.yScale(d.close));
 
   // Draw
@@ -212,7 +212,7 @@ function createLinearGradient(data, scales) {
   // Create shape area for gradient
   const area = d3
     .area()
-    .x((d) => scales.xScale(d.date))
+    .x((d) => scales.xScale(d.id))
     .y0(height)
     .y1((d) => scales.yScale(d.close));
   ctr
@@ -301,13 +301,13 @@ function handleTooltipmouvement(data, scales, tooltipElements) {
       const topMarge = 12;
       const bottomMarge = height - margin.bottom - 6;
 
-      const bisector = d3.bisector((d) => d.date).left;
+      const bisector = d3.bisector((d) => d.id).left;
       const index = bisector(data, currentDate);
       const currentElt = data[index - 1];
 
       tooltipDot
         .style("opacity", 1)
-        .attr("cx", scales.xScale(currentElt.date))
+        .attr("cx", scales.xScale(currentElt.id))
         .attr("cy", scales.yScale(currentElt.close));
 
       tooltip.attr("opacity", 1);
@@ -337,7 +337,7 @@ function handleTooltipmouvement(data, scales, tooltipElements) {
           : false;
 
       // Position the tooltip
-      let tooltipX = scales.xScale(currentElt.date) - tooltipWidth / 2;
+      let tooltipX = scales.xScale(currentElt.id) - tooltipWidth / 2;
       tooltipX = Math.max(-2, Math.min(width - tooltipWidth, tooltipX));
       const tooltipY = isNotHiddingDot ? bottomMarge : topMarge;
 
@@ -346,8 +346,8 @@ function handleTooltipmouvement(data, scales, tooltipElements) {
       //Line tooltip
       tooltipLine
         .attr("opacity", 0.7)
-        .attr("x1", scales.xScale(currentElt.date))
-        .attr("x2", scales.xScale(currentElt.date))
+        .attr("x1", scales.xScale(currentElt.id))
+        .attr("x2", scales.xScale(currentElt.id))
         .attr("y1", isNotHiddingDot ? margin.top : margin.top * 2)
         .attr("y2", isNotHiddingDot ? height - margin.top * 2 : height);
     });
