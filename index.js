@@ -239,7 +239,7 @@ class StockChart {
     const defs = this.container.append("defs");
     const gradient = defs
       .append("linearGradient")
-      .attr("id", "area-gradient")
+      .attr("id", "linear-gradient")
       .attr("x1", "0%")
       .attr("y1", "0%")
       .attr("x2", "0%")
@@ -270,9 +270,10 @@ class StockChart {
 
     this.container
       .append("path")
+      .attr("id", "shape-area")
       .datum(data)
       .attr("stroke", "none")
-      .attr("fill", "url(#area-gradient)")
+      .attr("fill", "url(#linear-gradient)")
       .attr("d", area1)
       .transition()
       .duration(500)
@@ -324,6 +325,27 @@ class StockChart {
       .attr("opacity", 0)
       .style("pointer-events", "none");
 
+    // Brush Elements
+    const dragDot = this.container
+      .append("circle")
+      .attr("r", 4)
+      .attr("fill", "var(--color-positive)")
+      .attr("stroke", "none")
+      .style("opacity", 0)
+      .style("pointer-events", "none");
+
+    const dragLine = this.container
+      .append("line")
+      .classed("drag-line", true)
+      .attr("x1", 0)
+      .attr("x2", 0)
+      .attr("y1", CHART_CONFIG.margin.top * 2)
+      .attr("y2", this.height)
+      .attr("stroke", "var(--color-text-ternary)")
+      .attr("stroke-dasharray", 3)
+      .attr("opacity", 0)
+      .style("pointer-events", "none");
+
     return {
       tooltip,
       tooltipText,
@@ -331,11 +353,13 @@ class StockChart {
       tooltipDate,
       tooltipDot,
       tooltipLine,
+      dragDot,
+      dragLine,
     };
   }
 
-  // Handle tooltip movement
-  handleTooltipMovement(data, scales, tooltipElements) {
+  // Handle tooltip elments
+  handleTooltipElement(data, scales, tooltipElements) {
     const {
       tooltip,
       tooltipText,
@@ -343,8 +367,12 @@ class StockChart {
       tooltipDate,
       tooltipDot,
       tooltipLine,
+      dragDot,
+      dragLine,
     } = tooltipElements;
     const periodConfig = PERIOD_CONFIG[this.period];
+    let startPoint;
+    let isOnDrag = false;
 
     this.container
       .append("rect")
@@ -353,14 +381,15 @@ class StockChart {
       .style("opacity", 0)
       .on("mousemove touchmove", (event) => {
         const [currentX] = d3.pointer(event, this.container.node());
-        const currentXPosition = Math.round(scales.xScale.invert(currentX));
+        const currentXPosition = scales.xScale.invert(currentX);
         const topMarge = 12;
         const bottomMarge = this.height - CHART_CONFIG.margin.bottom - 6;
 
         // const bisector = d3.bisector((d) => d.id).left;
         // const index = bisector(data, currentXPosition);
-        const currentElt = data[currentXPosition];
+        const currentElt = data[Math.round(currentXPosition)];
 
+        // if no data, we don't display tooltip
         if (currentElt === undefined) return;
         tooltipDot
           .style("opacity", 1)
@@ -369,6 +398,7 @@ class StockChart {
 
         tooltip.attr("opacity", 1);
 
+        // tooltip text
         const formattedClose = currentElt.close.toFixed(2);
         const formattedDate = periodConfig.tooltipDateFormat(currentElt.date);
 
@@ -377,6 +407,7 @@ class StockChart {
         );
         tooltipDate.text(formattedDate);
 
+        // tooltip size
         const textBBox = tooltipText.node().getBBox();
         const tooltipWidth = textBBox.width + 16;
         const tooltipHeight = 22;
@@ -386,13 +417,24 @@ class StockChart {
           .attr("width", tooltipWidth)
           .attr("height", tooltipHeight);
 
+        // if tooltip hidden the dot, we need to move the tooltip down
         const isNotHiddingDot =
           topMarge + tooltipHeight + 5 > scales.yScale(currentElt.close);
-
-        let tooltipX = scales.xScale(currentElt.id) - tooltipWidth / 2;
-        tooltipX = Math.max(-2, Math.min(this.width - tooltipWidth, tooltipX));
         const tooltipY = isNotHiddingDot ? bottomMarge : topMarge;
 
+        let tooltipX;
+        if (!isOnDrag) {
+          // tooltip position to avoid overlapping
+          tooltipX = scales.xScale(currentElt.id) - tooltipWidth / 2;
+        } else {
+          tooltipX= (startPoint + (currentX - startPoint) / 2) - tooltipWidth / 2;
+        }
+        tooltipX = Math.max(
+          -2,
+          Math.min(this.width - tooltipWidth, tooltipX)
+        );
+
+        
         tooltip
           .attr("transform", `translate(${tooltipX}, ${tooltipY})`)
           .raise();
@@ -413,7 +455,32 @@ class StockChart {
               ? this.height - CHART_CONFIG.margin.top * 2
               : this.height
           );
-      });
+      })
+      .on("mousedown touchstart", (event) => {
+        isOnDrag = true;
+        this.container.select("#shape-area").attr("fill", "none");
+        const [currentX] = d3.pointer(event, this.container.node());
+        startPoint = scales.xScale.invert(currentX);
+        const startElt = data[Math.round(startPoint)];
+        startPoint = currentX
+
+        if (startElt === undefined) return;
+        dragDot
+          .style("opacity", 1)
+          .attr("cx", scales.xScale(startElt.id))
+          .attr("cy", scales.yScale(startElt.close));
+
+        dragLine
+          .attr("opacity", 1)
+          .attr("x1", scales.xScale(startElt.id))
+          .attr("x2", scales.xScale(startElt.id));
+      })
+      .on("mouseup touchend", (event) => {
+        isOnDrag = false;
+        this.container.select("#shape-area").attr("fill", "url(#linear-gradient)");
+        dragDot.style("opacity", 0);
+        dragLine.attr("opacity", 0);
+      })
   }
 
   // Draw chart
@@ -428,7 +495,7 @@ class StockChart {
     this.createLinearGradient(data, scales);
 
     const tooltipElements = this.createTooltip();
-    this.handleTooltipMovement(data, scales, tooltipElements);
+    this.handleTooltipElement(data, scales, tooltipElements);
   }
 }
 
