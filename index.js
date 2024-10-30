@@ -241,8 +241,8 @@ class StockChart {
       .append("linearGradient")
       .attr("id", "linear-gradient")
       .attr("x1", "0%")
-      .attr("y1", "0%")
       .attr("x2", "0%")
+      .attr("y1", "0%")
       .attr("y2", "100%");
 
     gradient
@@ -256,6 +256,16 @@ class StockChart {
       .attr("offset", "100%")
       .attr("stop-color", "var(--color-gradiant-bottom)")
       .attr("stop-opacity", 0);
+
+    this.container
+      .append("mask")
+      .attr("id", "mask-area")
+      .append("rect")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", "100%")
+      .attr("height", this.height)
+      .attr("fill", "white");
 
     const area = d3
       .area()
@@ -277,7 +287,8 @@ class StockChart {
       .attr("d", area1)
       .transition()
       .duration(500)
-      .attr("d", area);
+      .attr("d", area)
+      .attr("mask", "url(#mask-area)");
   }
 
   // Create tooltip
@@ -370,9 +381,13 @@ class StockChart {
       dragDot,
       dragLine,
     } = tooltipElements;
+    const { xScale, yScale } = scales;
     const periodConfig = PERIOD_CONFIG[this.period];
-    let startPoint;
+    let startElt;
+    let currentElt;
     let isOnDrag = false;
+    const dragMask = this.container.select("#mask-area rect");
+    const areaGradient = this.container.select("#shape-area");
 
     this.container
       .append("rect")
@@ -381,20 +396,20 @@ class StockChart {
       .style("opacity", 0)
       .on("mousemove touchmove", (event) => {
         const [currentX] = d3.pointer(event, this.container.node());
-        const currentXPosition = scales.xScale.invert(currentX);
+        const currentXPosition = xScale.invert(currentX);
         const topMarge = 12;
         const bottomMarge = this.height - CHART_CONFIG.margin.bottom - 6;
 
         // const bisector = d3.bisector((d) => d.id).left;
         // const index = bisector(data, currentXPosition);
-        const currentElt = data[Math.round(currentXPosition)];
+        currentElt = data[Math.round(currentXPosition)];
 
         // if no data, we don't display tooltip
         if (currentElt === undefined) return;
         tooltipDot
           .style("opacity", 1)
-          .attr("cx", scales.xScale(currentElt.id))
-          .attr("cy", scales.yScale(currentElt.close));
+          .attr("cx", xScale(currentElt.id))
+          .attr("cy", yScale(currentElt.close));
 
         tooltip.attr("opacity", 1);
 
@@ -419,30 +434,29 @@ class StockChart {
 
         // if tooltip hidden the dot, we need to move the tooltip down
         const isNotHiddingDot =
-          topMarge + tooltipHeight + 5 > scales.yScale(currentElt.close);
+          topMarge + tooltipHeight + 5 > yScale(currentElt.close);
         const tooltipY = isNotHiddingDot ? bottomMarge : topMarge;
 
         let tooltipX;
-        if (!isOnDrag) {
-          // tooltip position to avoid overlapping
-          tooltipX = scales.xScale(currentElt.id) - tooltipWidth / 2;
-        } else {
-          tooltipX= (startPoint + (currentX - startPoint) / 2) - tooltipWidth / 2;
+        // tooltip position to avoid overlapping
+        tooltipX = xScale(currentElt.id) - tooltipWidth / 2;
+        if (isOnDrag) {
+          tooltipX =
+            xScale(startElt.id) +
+            (xScale(currentElt.id) - xScale(startElt.id)) / 2 -
+            tooltipWidth / 2;
         }
-        tooltipX = Math.max(
-          -2,
-          Math.min(this.width - tooltipWidth, tooltipX)
-        );
 
-        
+        tooltipX = Math.max(-2, Math.min(this.width - tooltipWidth, tooltipX));
+
         tooltip
           .attr("transform", `translate(${tooltipX}, ${tooltipY})`)
           .raise();
 
         tooltipLine
           .attr("opacity", 0.7)
-          .attr("x1", scales.xScale(currentElt.id))
-          .attr("x2", scales.xScale(currentElt.id))
+          .attr("x1", xScale(currentElt.id))
+          .attr("x2", xScale(currentElt.id))
           .attr(
             "y1",
             isNotHiddingDot
@@ -455,32 +469,36 @@ class StockChart {
               ? this.height - CHART_CONFIG.margin.top * 2
               : this.height
           );
+
+        if (isOnDrag) {
+          const startEltX = xScale(startElt.id);
+          const dragEltX = xScale(currentElt.id);
+          const x = Math.min(dragEltX, Math.round(startEltX));
+          const width = Math.abs(dragEltX - Math.round(startEltX));
+          dragMask.attr("x", x).attr("width", width);
+        }
       })
       .on("mousedown touchstart", (event) => {
         isOnDrag = true;
-        this.container.select("#shape-area").attr("fill", "none");
-        const [currentX] = d3.pointer(event, this.container.node());
-        startPoint = scales.xScale.invert(currentX);
-        const startElt = data[Math.round(startPoint)];
-        startPoint = currentX
+        startElt = { ...currentElt };
 
         if (startElt === undefined) return;
         dragDot
           .style("opacity", 1)
-          .attr("cx", scales.xScale(startElt.id))
-          .attr("cy", scales.yScale(startElt.close));
+          .attr("cx", xScale(startElt.id))
+          .attr("cy", yScale(startElt.close));
 
         dragLine
           .attr("opacity", 1)
-          .attr("x1", scales.xScale(startElt.id))
-          .attr("x2", scales.xScale(startElt.id));
+          .attr("x1", xScale(startElt.id))
+          .attr("x2", xScale(startElt.id));
       })
       .on("mouseup touchend", (event) => {
         isOnDrag = false;
-        this.container.select("#shape-area").attr("fill", "url(#linear-gradient)");
+        dragMask.attr("x", 0).attr("width", "100%");
         dragDot.style("opacity", 0);
         dragLine.attr("opacity", 0);
-      })
+      });
   }
 
   // Draw chart
