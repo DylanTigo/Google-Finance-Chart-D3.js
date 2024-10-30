@@ -369,6 +369,20 @@ class StockChart {
     };
   }
 
+  // Calculate price difference and percentage
+  calculatePriceDifference(startEltX, curentEltX) {
+    const min = Math.min(startEltX, curentEltX);
+    const max = Math.max(startEltX, curentEltX);
+
+    let priceDifference = curentEltX - startEltX;
+    priceDifference = priceDifference.toFixed(2);
+
+    let percentage = 1 - min / max;
+    percentage = percentage.toFixed(2);
+
+    return { priceDifference, percentage };
+  }
+
   // Handle tooltip elments
   handleTooltipElement(data, scales, tooltipElements) {
     const {
@@ -387,7 +401,6 @@ class StockChart {
     let currentElt;
     let isOnDrag = false;
     const dragMask = this.container.select("#mask-area rect");
-    const areaGradient = this.container.select("#shape-area");
 
     this.container
       .append("rect")
@@ -400,8 +413,6 @@ class StockChart {
         const topMarge = 12;
         const bottomMarge = this.height - CHART_CONFIG.margin.bottom - 6;
 
-        // const bisector = d3.bisector((d) => d.id).left;
-        // const index = bisector(data, currentXPosition);
         currentElt = data[Math.round(currentXPosition)];
 
         // if no data, we don't display tooltip
@@ -414,13 +425,52 @@ class StockChart {
         tooltip.attr("opacity", 1);
 
         // tooltip text
-        const formattedClose = currentElt.close.toFixed(2);
-        const formattedDate = periodConfig.tooltipDateFormat(currentElt.date);
+        if (isOnDrag) {
+          const { priceDifference, percentage } = this.calculatePriceDifference(
+            xScale(startElt.close),
+            xScale(currentElt.close)
+          );
 
-        tooltipClose.text(
-          `${formattedClose}${CHART_CONFIG.space}USD${CHART_CONFIG.space}${CHART_CONFIG.space}`
-        );
-        tooltipDate.text(formattedDate);
+          if (priceDifference > 0) {
+            tooltipClose
+              .style("fill", "var(--color-positive)")
+              .text(
+                `+${priceDifference}${CHART_CONFIG.space}${CHART_CONFIG.space}${percentage}%${CHART_CONFIG.space}▲${CHART_CONFIG.space}${CHART_CONFIG.space}`
+              );
+          } else if (priceDifference < 0) {
+            tooltipClose
+              .style("fill", "var(--color-negative)")
+              .text(
+                `${priceDifference}${CHART_CONFIG.space}${CHART_CONFIG.space}${percentage}%${CHART_CONFIG.space}▼${CHART_CONFIG.space}${CHART_CONFIG.space}`
+              );
+          } else {
+            tooltipClose.style("fill", "var(--color-text-primary)");
+          }
+
+          const formattedCurrentDate = periodConfig.tooltipDateFormat(
+            currentElt.date
+          );
+          const formattedStartDate = periodConfig.tooltipDateFormat(
+            startElt.date
+          );
+
+          if (xScale(currentElt.id) < xScale(startElt.id)) {
+            tooltipDate.text(
+              `${formattedCurrentDate}${CHART_CONFIG.space}-${CHART_CONFIG.space}${formattedStartDate}`
+            );
+          } else {
+            tooltipDate.text(
+              `${formattedStartDate}${CHART_CONFIG.space}-${CHART_CONFIG.space}${formattedCurrentDate}`
+            );
+          }
+        } else {
+          const formattedClose = currentElt.close.toFixed(2);
+          const formattedDate = periodConfig.tooltipDateFormat(currentElt.date);
+          tooltipClose.text(
+            `${formattedClose}${CHART_CONFIG.space}USD${CHART_CONFIG.space}${CHART_CONFIG.space}`
+          );
+          tooltipDate.text(formattedDate);
+        }
 
         // tooltip size
         const textBBox = tooltipText.node().getBBox();
@@ -435,7 +485,7 @@ class StockChart {
         // if tooltip hidden the dot, we need to move the tooltip down
         const isNotHiddingDot =
           topMarge + tooltipHeight + 5 > yScale(currentElt.close);
-        const tooltipY = isNotHiddingDot ? bottomMarge : topMarge;
+        const tooltipY = isNotHiddingDot && !isOnDrag ? bottomMarge : topMarge;
 
         let tooltipX;
         // tooltip position to avoid overlapping
@@ -459,22 +509,22 @@ class StockChart {
           .attr("x2", xScale(currentElt.id))
           .attr(
             "y1",
-            isNotHiddingDot
+            isNotHiddingDot && !isOnDrag
               ? CHART_CONFIG.margin.top
               : CHART_CONFIG.margin.top * 2
           )
           .attr(
             "y2",
-            isNotHiddingDot
+            isNotHiddingDot && !isOnDrag
               ? this.height - CHART_CONFIG.margin.top * 2
               : this.height
           );
 
         if (isOnDrag) {
           const startEltX = xScale(startElt.id);
-          const dragEltX = xScale(currentElt.id);
-          const x = Math.min(dragEltX, Math.round(startEltX));
-          const width = Math.abs(dragEltX - Math.round(startEltX));
+          const curentEltX = xScale(currentElt.id);
+          const x = Math.min(curentEltX, Math.round(startEltX));
+          const width = Math.abs(curentEltX - Math.round(startEltX));
           dragMask.attr("x", x).attr("width", width);
         }
       })
@@ -498,6 +548,7 @@ class StockChart {
         dragMask.attr("x", 0).attr("width", "100%");
         dragDot.style("opacity", 0);
         dragLine.attr("opacity", 0);
+        tooltipClose.style("fill", "var(--color-text-primary)");
       });
   }
 
