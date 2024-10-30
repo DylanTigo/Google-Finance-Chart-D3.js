@@ -1,7 +1,6 @@
 // Constants and configurations
 const CHART_CONFIG = {
   margin: { top: 10, bottom: 20, left: 30, right: 40 },
-  space: "\u00A0",
   parseDate: d3.utcParse("%Y-%m-%d %H:%M:%S%Z"),
 };
 
@@ -377,7 +376,7 @@ class StockChart {
     let priceDifference = curentEltX - startEltX;
     priceDifference = priceDifference.toFixed(2);
 
-    let percentage = 1 - min / max;
+    let percentage = (1 - min / max) * 100;
     percentage = percentage.toFixed(2);
 
     return { priceDifference, percentage };
@@ -401,6 +400,32 @@ class StockChart {
     let currentElt;
     let isOnDrag = false;
     const dragMask = this.container.select("#mask-area rect");
+    const space = "\u00A0";
+
+    const tooltipOpacity = (opacity) => {
+        tooltip.attr("opacity", opacity);
+        tooltipDot.style("opacity", opacity);
+    };
+
+    const updateTooltipContent = () => {
+        const formattedClose = currentElt.close.toFixed(2);
+        const formattedDate = periodConfig.tooltipDateFormat(currentElt.date);
+        tooltipClose.text(`${formattedClose}${space}USD${space}${space}`);
+        tooltipDate.text(formattedDate);
+    };
+
+    const updateTooltipPosition = (tooltipX, tooltipY, tooltipWidth) => {
+        tooltip.attr("transform", `translate(${tooltipX}, ${tooltipY})`).raise();
+    };
+
+    const updateTooltipLine = (isNotHiddingDot) => {
+        tooltipLine
+          .attr("opacity", 0.7)
+          .attr("x1", xScale(currentElt.id))
+          .attr("x2", xScale(currentElt.id))
+          .attr("y1", isNotHiddingDot && !isOnDrag ? CHART_CONFIG.margin.top : CHART_CONFIG.margin.top * 2)
+          .attr("y2", isNotHiddingDot && !isOnDrag ? this.height - CHART_CONFIG.margin.top * 2 : this.height);
+    };
 
     this.container
       .append("rect")
@@ -414,125 +439,67 @@ class StockChart {
         const bottomMarge = this.height - CHART_CONFIG.margin.bottom - 6;
 
         currentElt = data[Math.round(currentXPosition)];
-
-        // if no data, we don't display tooltip
         if (currentElt === undefined) return;
+
         tooltipDot
-          .style("opacity", 1)
           .attr("cx", xScale(currentElt.id))
           .attr("cy", yScale(currentElt.close));
 
-        tooltip.attr("opacity", 1);
-
-        // tooltip text
+        tooltipOpacity(1);
         if (isOnDrag) {
-          const { priceDifference, percentage } = this.calculatePriceDifference(
-            xScale(startElt.close),
-            xScale(currentElt.close)
-          );
-
-          if (priceDifference > 0) {
-            tooltipClose
-              .style("fill", "var(--color-positive)")
-              .text(
-                `+${priceDifference}${CHART_CONFIG.space}${CHART_CONFIG.space}${percentage}%${CHART_CONFIG.space}▲${CHART_CONFIG.space}${CHART_CONFIG.space}`
-              );
-          } else if (priceDifference < 0) {
-            tooltipClose
-              .style("fill", "var(--color-negative)")
-              .text(
-                `${priceDifference}${CHART_CONFIG.space}${CHART_CONFIG.space}${percentage}%${CHART_CONFIG.space}▼${CHART_CONFIG.space}${CHART_CONFIG.space}`
-              );
-          } else {
-            tooltipClose.style("fill", "var(--color-text-primary)");
-          }
-
-          const formattedCurrentDate = periodConfig.tooltipDateFormat(
-            currentElt.date
-          );
-          const formattedStartDate = periodConfig.tooltipDateFormat(
-            startElt.date
-          );
-
-          if (xScale(currentElt.id) < xScale(startElt.id)) {
-            tooltipDate.text(
-              `${formattedCurrentDate}${CHART_CONFIG.space}-${CHART_CONFIG.space}${formattedStartDate}`
+            const { priceDifference, percentage } = this.calculatePriceDifference(
+                xScale(startElt.close),
+                xScale(currentElt.close)
             );
-          } else {
-            tooltipDate.text(
-              `${formattedStartDate}${CHART_CONFIG.space}-${CHART_CONFIG.space}${formattedCurrentDate}`
-            );
-          }
+
+            tooltipClose
+              .style("fill", priceDifference > 0 ? "var(--color-positive)" :
+                            priceDifference < 0 ? "var(--color-negative)" :
+                            "var(--color-text-primary")
+              
+              .text(priceDifference > 0 ? `+${priceDifference}${space}(${percentage}%)${space}▲${space}${space}` :
+                   priceDifference < 0 ? `${priceDifference}${space}(${percentage}%)${space}▼${space}${space}` :
+                   "");
+
+            const formattedCurrentDate = periodConfig.tooltipDateFormat(currentElt.date);
+            const formattedStartDate = periodConfig.tooltipDateFormat(startElt.date);
+            tooltipDate.text(xScale(currentElt.id) < xScale(startElt.id) ? 
+                `${formattedCurrentDate}${space}-${space}${formattedStartDate}` :
+                `${formattedStartDate}${space}-${space}${formattedCurrentDate}`);
         } else {
-          const formattedClose = currentElt.close.toFixed(2);
-          const formattedDate = periodConfig.tooltipDateFormat(currentElt.date);
-          tooltipClose.text(
-            `${formattedClose}${CHART_CONFIG.space}USD${CHART_CONFIG.space}${CHART_CONFIG.space}`
-          );
-          tooltipDate.text(formattedDate);
+            updateTooltipContent();
         }
 
-        // tooltip size
         const textBBox = tooltipText.node().getBBox();
         const tooltipWidth = textBBox.width + 16;
         const tooltipHeight = 22;
+        tooltip.select("rect").attr("width", tooltipWidth).attr("height", tooltipHeight);
 
-        tooltip
-          .select("rect")
-          .attr("width", tooltipWidth)
-          .attr("height", tooltipHeight);
-
-        // if tooltip hidden the dot, we need to move the tooltip down
-        const isNotHiddingDot =
-          topMarge + tooltipHeight + 5 > yScale(currentElt.close);
+        const isNotHiddingDot = topMarge + tooltipHeight + 5 > yScale(currentElt.close);
         const tooltipY = isNotHiddingDot && !isOnDrag ? bottomMarge : topMarge;
 
-        let tooltipX;
-        // tooltip position to avoid overlapping
-        tooltipX = xScale(currentElt.id) - tooltipWidth / 2;
+        let tooltipX = xScale(currentElt.id) - tooltipWidth / 2;
         if (isOnDrag) {
-          tooltipX =
-            xScale(startElt.id) +
-            (xScale(currentElt.id) - xScale(startElt.id)) / 2 -
-            tooltipWidth / 2;
+            tooltipX = xScale(startElt.id) + (xScale(currentElt.id) - xScale(startElt.id)) / 2 - tooltipWidth / 2;
         }
-
         tooltipX = Math.max(-2, Math.min(this.width - tooltipWidth, tooltipX));
 
-        tooltip
-          .attr("transform", `translate(${tooltipX}, ${tooltipY})`)
-          .raise();
-
-        tooltipLine
-          .attr("opacity", 0.7)
-          .attr("x1", xScale(currentElt.id))
-          .attr("x2", xScale(currentElt.id))
-          .attr(
-            "y1",
-            isNotHiddingDot && !isOnDrag
-              ? CHART_CONFIG.margin.top
-              : CHART_CONFIG.margin.top * 2
-          )
-          .attr(
-            "y2",
-            isNotHiddingDot && !isOnDrag
-              ? this.height - CHART_CONFIG.margin.top * 2
-              : this.height
-          );
+        updateTooltipPosition(tooltipX, tooltipY, tooltipWidth);
+        updateTooltipLine(isNotHiddingDot);
 
         if (isOnDrag) {
-          const startEltX = xScale(startElt.id);
-          const curentEltX = xScale(currentElt.id);
-          const x = Math.min(curentEltX, Math.round(startEltX));
-          const width = Math.abs(curentEltX - Math.round(startEltX));
-          dragMask.attr("x", x).attr("width", width);
+            const startEltX = xScale(startElt.id);
+            const curentEltX = xScale(currentElt.id);
+            const x = Math.min(curentEltX, Math.round(startEltX));
+            const width = Math.abs(curentEltX - Math.round(startEltX));
+            dragMask.attr("x", x).attr("width", width);
         }
       })
       .on("mousedown touchstart", (event) => {
         isOnDrag = true;
         startElt = { ...currentElt };
-
         if (startElt === undefined) return;
+
         dragDot
           .style("opacity", 1)
           .attr("cx", xScale(startElt.id))
@@ -550,7 +517,8 @@ class StockChart {
         dragLine.attr("opacity", 0);
         tooltipClose.style("fill", "var(--color-text-primary)");
       });
-  }
+}
+
 
   // Draw chart
   async draw() {
