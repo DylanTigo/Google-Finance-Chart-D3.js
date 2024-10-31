@@ -1,8 +1,5 @@
-// Constants and configurations
-const CHART_CONFIG = {
-  margin: { top: 10, bottom: 20, left: 30, right: 40 },
-  parseDate: d3.utcParse("%Y-%m-%d %H:%M:%S%Z"),
-};
+const margin = { top: 10, bottom: 20, left: 30, right: 40 };
+const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
 
 const PERIOD_CONFIG = {
   "1d": {
@@ -58,15 +55,15 @@ const PERIOD_CONFIG = {
   },
 };
 
-class StockChart {
+class Chart {
   // Constructor and setup
   constructor(selector) {
-    this.svg = d3.select(selector);
-    this.width = this.svg.node().clientWidth - CHART_CONFIG.margin.right;
-    this.height = this.svg.node().clientHeight - CHART_CONFIG.margin.bottom;
-    this.container = this.svg
+    let svg = d3.select(selector);
+    this.width = svg.node().clientWidth - margin.right;
+    this.height = svg.node().clientHeight - margin.bottom;
+    this.container = svg
       .append("g")
-      .attr("transform", `translate(${CHART_CONFIG.margin.left}, 0)`);
+      .attr("transform", `translate(${margin.left}, 0)`);
     this.period = "1d";
     this.setupEventListeners();
   }
@@ -80,22 +77,19 @@ class StockChart {
   setupEventListeners() {
     const buttons = document.querySelectorAll(".btn");
     buttons.forEach((button) => {
-      button.addEventListener("click", (e) => this.handlePeriodChange(e));
+      button.addEventListener("click", (event) => {
+        const buttons = document.querySelectorAll(".btn");
+        const active = event.target.classList.contains("active");
+
+        if (!active) {
+          buttons.forEach((button) => button.classList.remove("active"));
+          event.target.classList.add("active");
+          this.period = event.target.dataset.period;
+          this.container.selectAll("*").remove();
+          this.draw();
+        }
+      });
     });
-  }
-
-  // Handle period change
-  handlePeriodChange(event) {
-    const buttons = document.querySelectorAll(".btn");
-    const active = event.target.classList.contains("active");
-
-    if (!active) {
-      buttons.forEach((button) => button.classList.remove("active"));
-      event.target.classList.add("active");
-      this.period = event.target.dataset.period;
-      this.container.selectAll("*").remove();
-      this.draw();
-    }
   }
 
   // Fetch data
@@ -150,18 +144,18 @@ class StockChart {
 
     const yMin = ticksY[0];
     const yMax = ticksY[ticksY.length - 1];
-    const rangeMax = this.period === "1d" ? 44 : data.length - 1;
+    const domainMax = this.period === "1d" ? 44 : data.length - 1;
 
     // Setup scales
     const xScale = d3
       .scaleLinear()
-      .domain([0, rangeMax])
+      .domain([0, domainMax])
       .range([0, this.width - 2]);
 
     const yScale = d3
       .scaleLinear()
       .domain([yMin, yMax])
-      .range([this.height, CHART_CONFIG.margin.top])
+      .range([this.height, margin.top])
       .nice();
 
     return { xScale, yScale, ticksX, ticksY };
@@ -248,7 +242,7 @@ class StockChart {
       .append("stop")
       .attr("offset", "0%")
       .attr("stop-color", "var(--color-gradiant-top)")
-      .attr("stop-opacity", 0.35);
+      .attr("stop-opacity", 0.3);
 
     gradient
       .append("stop")
@@ -328,7 +322,7 @@ class StockChart {
       .classed("tooltip-line", true)
       .attr("x1", 0)
       .attr("x2", 0)
-      .attr("y1", CHART_CONFIG.margin.top * 2)
+      .attr("y1", margin.top * 2)
       .attr("y2", this.height)
       .attr("stroke", "var(--color-text-ternary)")
       .attr("stroke-dasharray", 3)
@@ -349,7 +343,7 @@ class StockChart {
       .classed("drag-line", true)
       .attr("x1", 0)
       .attr("x2", 0)
-      .attr("y1", CHART_CONFIG.margin.top * 2)
+      .attr("y1", margin.top * 2)
       .attr("y2", this.height)
       .attr("stroke", "var(--color-text-ternary)")
       .attr("stroke-dasharray", 3)
@@ -366,20 +360,6 @@ class StockChart {
       dragDot,
       dragLine,
     };
-  }
-
-  // Calculate price difference and percentage
-  calculatePriceDifference(startEltX, curentEltX) {
-    const min = Math.min(startEltX, curentEltX);
-    const max = Math.max(startEltX, curentEltX);
-
-    let priceDifference = curentEltX - startEltX;
-    priceDifference = priceDifference.toFixed(2);
-
-    let percentage = (1 - min / max) * 100;
-    percentage = percentage.toFixed(2);
-
-    return { priceDifference, percentage };
   }
 
   // Handle tooltip elments
@@ -403,28 +383,84 @@ class StockChart {
     const space = "\u00A0";
 
     const tooltipOpacity = (opacity) => {
-        tooltip.attr("opacity", opacity);
-        tooltipDot.style("opacity", opacity);
+      tooltip.attr("opacity", opacity);
+      tooltipDot.style("opacity", opacity);
     };
 
     const updateTooltipContent = () => {
+      if (isOnDrag) {
+        const { priceDifference, percentage } = calculatePriceDifference(
+          xScale(startElt.close),
+          xScale(currentElt.close)
+        );
+
+        tooltipClose
+          .style(
+            "fill",
+            priceDifference > 0
+              ? "var(--color-positive)"
+              : priceDifference < 0
+              ? "var(--color-negative)"
+              : "var(--color-text-primary"
+          )
+
+          .text(
+            priceDifference > 0
+              ? `+${priceDifference}${space}(${percentage}%)${space}▲${space}${space}`
+              : priceDifference < 0
+              ? `${priceDifference}${space}(${percentage}%)${space}▼${space}${space}`
+              : ""
+          );
+
+        const formattedCurrentDate = periodConfig.tooltipDateFormat(
+          currentElt.date
+        );
+        const formattedStartDate = periodConfig.tooltipDateFormat(
+          startElt.date
+        );
+        tooltipDate.text(
+          xScale(currentElt.id) < xScale(startElt.id)
+            ? `${formattedCurrentDate}${space}-${space}${formattedStartDate}`
+            : `${formattedStartDate}${space}-${space}${formattedCurrentDate}`
+        );
+      } else {
         const formattedClose = currentElt.close.toFixed(2);
         const formattedDate = periodConfig.tooltipDateFormat(currentElt.date);
         tooltipClose.text(`${formattedClose}${space}USD${space}${space}`);
         tooltipDate.text(formattedDate);
+      }
     };
 
     const updateTooltipPosition = (tooltipX, tooltipY, tooltipWidth) => {
-        tooltip.attr("transform", `translate(${tooltipX}, ${tooltipY})`).raise();
+      tooltip.attr("transform", `translate(${tooltipX}, ${tooltipY})`).raise();
     };
 
     const updateTooltipLine = (isNotHiddingDot) => {
-        tooltipLine
-          .attr("opacity", 0.7)
-          .attr("x1", xScale(currentElt.id))
-          .attr("x2", xScale(currentElt.id))
-          .attr("y1", isNotHiddingDot && !isOnDrag ? CHART_CONFIG.margin.top : CHART_CONFIG.margin.top * 2)
-          .attr("y2", isNotHiddingDot && !isOnDrag ? this.height - CHART_CONFIG.margin.top * 2 : this.height);
+      tooltipLine
+        .attr("opacity", 0.7)
+        .attr("x1", xScale(currentElt.id))
+        .attr("x2", xScale(currentElt.id))
+        .attr("y1", isNotHiddingDot && !isOnDrag ? margin.top : margin.top * 2)
+        .attr(
+          "y2",
+          isNotHiddingDot && !isOnDrag
+            ? this.height - margin.top * 2
+            : this.height
+        );
+    };
+
+    // Calculate price difference and percentage
+    const calculatePriceDifference = (startEltX, curentEltX) => {
+      const min = Math.min(startEltX, curentEltX);
+      const max = Math.max(startEltX, curentEltX);
+
+      let priceDifference = curentEltX - startEltX;
+      priceDifference = priceDifference.toFixed(2);
+
+      let percentage = (1 - min / max) * 100;
+      percentage = percentage.toFixed(2);
+
+      return { priceDifference, percentage };
     };
 
     this.container
@@ -436,7 +472,7 @@ class StockChart {
         const [currentX] = d3.pointer(event, this.container.node());
         const currentXPosition = xScale.invert(currentX);
         const topMarge = 12;
-        const bottomMarge = this.height - CHART_CONFIG.margin.bottom - 6;
+        const bottomMarge = this.height - margin.bottom - 6;
 
         currentElt = data[Math.round(currentXPosition)];
         if (currentElt === undefined) return;
@@ -446,41 +482,27 @@ class StockChart {
           .attr("cy", yScale(currentElt.close));
 
         tooltipOpacity(1);
-        if (isOnDrag) {
-            const { priceDifference, percentage } = this.calculatePriceDifference(
-                xScale(startElt.close),
-                xScale(currentElt.close)
-            );
 
-            tooltipClose
-              .style("fill", priceDifference > 0 ? "var(--color-positive)" :
-                            priceDifference < 0 ? "var(--color-negative)" :
-                            "var(--color-text-primary")
-              
-              .text(priceDifference > 0 ? `+${priceDifference}${space}(${percentage}%)${space}▲${space}${space}` :
-                   priceDifference < 0 ? `${priceDifference}${space}(${percentage}%)${space}▼${space}${space}` :
-                   "");
-
-            const formattedCurrentDate = periodConfig.tooltipDateFormat(currentElt.date);
-            const formattedStartDate = periodConfig.tooltipDateFormat(startElt.date);
-            tooltipDate.text(xScale(currentElt.id) < xScale(startElt.id) ? 
-                `${formattedCurrentDate}${space}-${space}${formattedStartDate}` :
-                `${formattedStartDate}${space}-${space}${formattedCurrentDate}`);
-        } else {
-            updateTooltipContent();
-        }
+        updateTooltipContent();
 
         const textBBox = tooltipText.node().getBBox();
         const tooltipWidth = textBBox.width + 16;
         const tooltipHeight = 22;
-        tooltip.select("rect").attr("width", tooltipWidth).attr("height", tooltipHeight);
+        tooltip
+          .select("rect")
+          .attr("width", tooltipWidth)
+          .attr("height", tooltipHeight);
 
-        const isNotHiddingDot = topMarge + tooltipHeight + 5 > yScale(currentElt.close);
+        const isNotHiddingDot =
+          topMarge + tooltipHeight + 5 > yScale(currentElt.close);
         const tooltipY = isNotHiddingDot && !isOnDrag ? bottomMarge : topMarge;
 
         let tooltipX = xScale(currentElt.id) - tooltipWidth / 2;
         if (isOnDrag) {
-            tooltipX = xScale(startElt.id) + (xScale(currentElt.id) - xScale(startElt.id)) / 2 - tooltipWidth / 2;
+          tooltipX =
+            xScale(startElt.id) +
+            (xScale(currentElt.id) - xScale(startElt.id)) / 2 -
+            tooltipWidth / 2;
         }
         tooltipX = Math.max(-2, Math.min(this.width - tooltipWidth, tooltipX));
 
@@ -488,11 +510,11 @@ class StockChart {
         updateTooltipLine(isNotHiddingDot);
 
         if (isOnDrag) {
-            const startEltX = xScale(startElt.id);
-            const curentEltX = xScale(currentElt.id);
-            const x = Math.min(curentEltX, Math.round(startEltX));
-            const width = Math.abs(curentEltX - Math.round(startEltX));
-            dragMask.attr("x", x).attr("width", width);
+          const startEltX = xScale(startElt.id);
+          const curentEltX = xScale(currentElt.id);
+          const x = Math.min(curentEltX, Math.round(startEltX));
+          const width = Math.abs(curentEltX - Math.round(startEltX));
+          dragMask.attr("x", x).attr("width", width);
         }
       })
       .on("mousedown touchstart", (event) => {
@@ -517,8 +539,7 @@ class StockChart {
         dragLine.attr("opacity", 0);
         tooltipClose.style("fill", "var(--color-text-primary)");
       });
-}
-
+  }
 
   // Draw chart
   async draw() {
@@ -537,5 +558,5 @@ class StockChart {
 }
 
 // Usage
-const chart = new StockChart("#chart svg");
+const chart = new Chart("#chart svg");
 chart.init();
