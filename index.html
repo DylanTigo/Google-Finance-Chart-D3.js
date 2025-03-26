@@ -9,7 +9,8 @@
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"
       rel="stylesheet"
     />
-    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/d3@7"></script> -->
+     <script src="./d3.v7.js"></script>
     
     <link rel="stylesheet" href="style.css" />
     <title>Finance Chart</title>
@@ -18,25 +19,13 @@
     <main>
       <div class="header-container">
         <h1>
-          589.95 <span>USD</span>
+          <span>589.95</span> USD
         </h1>
         <div class="block1">
-          <span>+78.05 (15.25%) </span>
+          <span id="pourcentage">+78.05 (15.25%) </span>
           <span>
-            <svg
-              width="10"
-              height="10"
-              version="1.1"
-              viewBox="0 0 12 12"
-              xmlns="http://www.w3.org/2000/svg"
-              xmlns:xlink="http://www.w3.org/1999/xlink"
-            >
-              <path
-                d="M6,0.002L0 6.002 4.8 6.002 4.8 11.9996 7.2 11.9996 7.2 6.002 12 6.002z"
-              ></path>
-            </svg>
           </span>
-          <span> today</span>
+          <span id="period">today</span>
         </div>
         <div class="block2">
           <div>After hours 589.10 -0.85 (+0.14%)</div>
@@ -108,7 +97,7 @@
       </div>
     </main>
 
-    <script src="custumScale.js"></script>
-    <script src="index.js"></script>
+
+    <script type="module" src="index.js"></script>
   </body>
 </html>

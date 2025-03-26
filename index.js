@@ -1,8 +1,12 @@
+// import  * as d3 from 'd3';
+
+const startTime = performance.now();
 const margin = { top: 10, bottom: 20, left: 30, right: 40 };
-const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
+// const parseDate = d3.utcParse("%Y-%m-%d %H:%M:%S%Z");
 
 const PERIOD_CONFIG = {
   "1d": {
+    period: "today",
     tickFormat: ["10:00", "12:00", "14:00", "16:00", "18:00", "20:00"],
     tooltipDateFormat: d3.timeFormat("%H:%M"),
     dataFile: "datas/1D.csv",
@@ -10,57 +14,73 @@ const PERIOD_CONFIG = {
     tickValues: [2, 10, 18, 26, 34, 42],
   },
   "5d": {
+    period: "past 5 days",
     tickFormat: d3.timeFormat("%d %b"),
     tooltipDateFormat: d3.timeFormat("%a, %d %b %H:%M"),
     dataFile: "datas/5D.csv",
     gapTicksY: 3,
-    generateTicks: (startDate, endDate) => {
-      return d3.timeDay
-        .range(startDate, endDate)
-        .filter((d) => d.getTime() !== startDate.getTime())
-        .map((d) => {
-          d.setHours(9, 30);
-          return new Date(d);
-        });
+    getTicksObject: (data) => {
+      let lastCheckedDate = data[data.length - 1].date;
+      let result = [];
+      for (let i = data.length - 1; i >= 0; i--) {
+        const currentDate = data[i].date;
+        if (lastCheckedDate.getDay() !== currentDate.getDay()) {
+          result.unshift(data[i + 1]);
+          lastCheckedDate = currentDate;
+        }
+      }
+      return result;
     },
   },
   "1m": {
+    period: "last moth",
     tickFormat: d3.timeFormat("%d %b"),
     tooltipDateFormat: d3.timeFormat("%a, %d %b"),
     dataFile: "datas/1M.csv",
     gapTicksY: 10,
-    generateTicks: (startDate, endDate) => {
-      return d3.timeMonday
-        .range(startDate, endDate)
-        .filter((d) => d.getTime() !== startDate.getTime());
-    },
-    tickFinder: (data, tick) => {
-      return data.find((d) => d.date.getDay() === tick.getDay());
+    getTicksObject: (data) => {
+      let result = [];
+      for (let i = data.length - 4; i >= 0; i -= 5) {
+        result.unshift(data[i - 1]);
+      }
+      return result;
     },
   },
   "6m": {
+    period: "last 5 month",
     tickFormat: d3.timeFormat("%b %Y"),
     tooltipDateFormat: d3.timeFormat("%a, %d %b"),
     dataFile: "datas/6M.csv",
     gapTicksY: 20,
-    generateTicks: (startDate, endDate) => {
-      return d3.timeMonth
-        .range(startDate, endDate, 2)
-        .filter((d) => d.getTime() !== startDate.getTime());
-    },
-    tickFinder: (data, tick) => {
-      // Find closiest data to tick
-      return data.find((d) => d.date.getMonth() === tick.getMonth());
+    getTicksObject: (data) => {
+      let lastCheckedDate = data[data.length - 1].date;
+      let result = [];
+      for (let i = data.length - 1; i >= 0; i--) {
+        const currentDate = data[i].date;
+        if (
+          lastCheckedDate.getMonth() - currentDate.getMonth() >= 2 ||
+          lastCheckedDate.getFullYear() > currentDate.getFullYear()
+        ) {
+          result.unshift(data[i + 1]);
+          lastCheckedDate = currentDate;
+        }
+      }
+      return result;
     },
   },
 };
 
+// Classe principale
 class Chart {
   // Constructor and setup
   constructor(selector) {
     let svg = d3.select(selector);
     this.width = svg.node().clientWidth - margin.right;
     this.height = svg.node().clientHeight - margin.bottom;
+    svg.attr(
+      "viewBox",
+      `0 0 ${this.width + margin.right} ${this.height + margin.bottom}`
+    );
     this.container = svg
       .append("g")
       .attr("transform", `translate(${margin.left}, 0)`);
@@ -77,19 +97,22 @@ class Chart {
   setupEventListeners() {
     const buttons = document.querySelectorAll(".btn");
     buttons.forEach((button) => {
-      button.addEventListener("click", (event) => {
-        const buttons = document.querySelectorAll(".btn");
-        const active = event.target.classList.contains("active");
-
-        if (!active) {
-          buttons.forEach((button) => button.classList.remove("active"));
-          event.target.classList.add("active");
-          this.period = event.target.dataset.period;
-          this.container.selectAll("*").remove();
-          this.draw();
-        }
-      });
+      button.removeEventListener("click", this.handlePeriodChange);
+      button.addEventListener("click", this.handlePeriodChange);
     });
+  }
+  
+  handlePeriodChange = (event) => {
+    const buttons = document.querySelectorAll(".btn");
+    const active = event.target.classList.contains("active");
+  
+    if (!active) {
+      buttons.forEach((button) => button.classList.remove("active"));
+      event.target.classList.add("active");
+      this.period = event.target.dataset.period;
+      this.container.selectAll("*").remove();
+      this.draw();
+    }
   }
 
   // Fetch data
@@ -113,27 +136,13 @@ class Chart {
     for (let i = minTick; i <= maxTick; i += gap) {
       ticks.push(i);
     }
+
     return ticks;
   }
 
   // Setup scales
-  setupScales(data, startDate, endDate) {
+  setupScales(data) {
     const periodConfig = PERIOD_CONFIG[this.period];
-
-    // get ticks
-    let ticksX;
-    if (this.period === "1d") {
-      ticksX = periodConfig.tickValues;
-    } else {
-      const ticks = periodConfig.generateTicks(startDate, endDate);
-      ticksX = ticks.map((tick) => {
-        let idValue = data.find((d) => d.date.getTime() === tick.getTime());
-        if (!idValue) {
-          idValue = periodConfig.tickFinder(data, tick);
-        }
-        return idValue.id;
-      });
-    }
 
     // get ticks Y
     const ticksY = this.generateTicksY(
@@ -158,29 +167,32 @@ class Chart {
       .range([this.height, margin.top])
       .nice();
 
-    return { xScale, yScale, ticksX, ticksY };
+    return { xScale, yScale, ticksY };
   }
 
   // Create axes
   createAxes(scales, data) {
-    const { xScale, yScale, ticksX, ticksY } = scales;
+    const { xScale, yScale, ticksY } = scales;
     const periodConfig = PERIOD_CONFIG[this.period];
 
     // Setup axes
-    const xAxis = d3
-      .axisBottom(xScale)
-      .tickValues(ticksX)
-      .tickFormat((d, i) => {
-        return this.period === "1d"
-          ? periodConfig.tickFormat[i]
-          : periodConfig.tickFormat(data[d].date);
-      })
-      .tickSizeOuter(0);
+    const xAxis = d3.axisBottom(xScale).tickSizeOuter(0);
+
+    if (this.period === "1d") {
+      xAxis
+        .tickValues(periodConfig.tickValues)
+        .tickFormat((d, i) => periodConfig.tickFormat[i]);
+    } else {
+      const ticksObject = periodConfig.getTicksObject(data);
+      xAxis
+        .tickValues(ticksObject.map((d) => d.id))
+        .tickFormat((d, i) => periodConfig.tickFormat(ticksObject[i].date));
+    }
 
     const yAxis = d3
       .axisLeft(yScale)
-      .tickFormat(d3.format("d"))
       .tickValues(ticksY)
+      .tickFormat(d3.format("d"))
       .tickSizeOuter(0);
 
     // Draw axes
@@ -223,7 +235,7 @@ class Chart {
       .attr("stroke-width", 2)
       .attr("d", line1)
       .transition()
-      .duration(500)
+      .duration(300)
       .attr("d", line);
   }
 
@@ -279,7 +291,7 @@ class Chart {
       .attr("fill", "url(#linear-gradient)")
       .attr("d", area1)
       .transition()
-      .duration(500)
+      .duration(300)
       .attr("d", area)
       .attr("mask", "url(#mask-area)");
   }
@@ -362,6 +374,30 @@ class Chart {
     };
   }
 
+  // Calculate price difference and percentage
+  calculatePriceDifference = (startElt, curentElt, scales) => {
+
+    const { xScale, yScale } = scales;
+    const startEltX = xScale(startElt.close);
+    const curentEltX = xScale(curentElt.close);
+    let priceDifference 
+    if (startElt.id > curentElt.id) {
+      priceDifference = startEltX - curentEltX;
+    } else {
+      priceDifference = curentEltX - startEltX;
+    }
+    priceDifference = priceDifference.toFixed(2);
+    
+    const min = Math.min(startEltX, curentEltX);
+    const max = Math.max(startEltX, curentEltX);
+
+    let percentage = (1 - min / max) * 100;
+    percentage = percentage.toFixed(2);
+
+    return { priceDifference, percentage };
+  };
+
+
   // Handle tooltip elments
   handleTooltipElement(data, scales, tooltipElements) {
     const {
@@ -384,9 +420,10 @@ class Chart {
 
     const updateTooltipContent = () => {
       if (isOnDrag) {
-        const { priceDifference, percentage } = calculatePriceDifference(
-          xScale(startElt.close),
-          xScale(currentElt.close)
+        const { priceDifference, percentage } = this.calculatePriceDifference(
+          startElt,
+          currentElt,
+          scales
         );
 
         let fillColor;
@@ -422,27 +459,7 @@ class Chart {
       }
     };
 
-
-    // Calculate price difference and percentage
-    const calculatePriceDifference = (startEltX, curentEltX) => {
-      const min = Math.min(startEltX, curentEltX);
-      const max = Math.max(startEltX, curentEltX);
-
-      let priceDifference = curentEltX - startEltX;
-      priceDifference = priceDifference.toFixed(2);
-
-      let percentage = (1 - min / max) * 100;
-      percentage = percentage.toFixed(2);
-
-      return { priceDifference, percentage };
-    };
-
-    this.container
-      .append("rect")
-      .attr("width", this.width)
-      .attr("height", this.height)
-      .style("opacity", 0)
-      .on("mousemove touchmove", (event) => {
+    const handleMove = (event) => {
         const [currentX] = d3.pointer(event, this.container.node());
         const currentXPosition = xScale.invert(currentX);
         const topMarge = 12;
@@ -450,8 +467,8 @@ class Chart {
 
         currentElt = data[Math.round(currentXPosition)];
         if (currentElt === undefined) return;
-        
-        // Calculate and set tooltip position 
+
+        // Calculate and set tooltip position
         const textBBox = tooltipText.node().getBBox();
         const tooltipWidth = textBBox.width + 16;
         const tooltipHeight = 22;
@@ -476,7 +493,7 @@ class Chart {
         tooltipX = Math.max(-2, Math.min(this.width - tooltipWidth, tooltipX));
 
         // update Tooltip content
-        updateTooltipContent()
+        updateTooltipContent();
 
         // Show and update tooltip
         tooltip
@@ -512,7 +529,14 @@ class Chart {
           const width = Math.abs(curentEltX - startEltX);
           dragMask.attr("x", x).attr("width", width);
         }
-      })
+      }
+
+    this.container
+      .append("rect")
+      .attr("width", this.width)
+      .attr("height", this.height)
+      .style("opacity", 0)
+      .on("mousemove touchmove", handleMove)
       .on("mousedown touchstart", () => {
         isOnDrag = true;
         startElt = { ...currentElt };
@@ -539,20 +563,50 @@ class Chart {
 
   // Draw chart
   async draw() {
-    const data = await this.fetchData();
-    const startDate = data[0].date;
-    const endDate = data[data.length - 1].date;
-    const scales = this.setupScales(data, startDate, endDate);
 
+    const renderStartTime = performance.now();
+
+    const dataBindingStartTime = performance.now();
+    const data = await this.fetchData();
+    const dataBindingEndTime = performance.now();
+    
+    const scales = this.setupScales(data);
+
+    const block = document.querySelector(".block1")
+    const { priceDifference, percentage } = this.calculatePriceDifference(data[0], data[data.length-1], scales)
+
+    let fillColor;
+    let description;
+    if (priceDifference > 0) {
+      fillColor = "var(--color-positive)";
+      description = `+${priceDifference} (+${percentage}%) ▲ ${PERIOD_CONFIG[this.period].period}`;
+    } else if (priceDifference < 0) {
+      fillColor = "var(--color-negative)";
+      description = `${priceDifference} (-${percentage}%) ▼ ${PERIOD_CONFIG[this.period].period}`;
+    }
+    block.textContent = description
+    block.style.color = fillColor
+
+    const price = document.querySelector(".header-container h1 span");
+    price.textContent = data[data.length - 1].close.toFixed(2);
+    
     this.createAxes(scales, data);
     this.createLineShape(data, scales);
     this.createLinearGradient(data, scales);
-
+    
     const tooltipElements = this.createTooltip();
     this.handleTooltipElement(data, scales, tooltipElements);
+
+    const renderEndTime = performance.now();
+
+
+    // Memory usage
+    console.log(`Memory usage: ${performance.memory.usedJSHeapSize / 1024 / 1024} MB`);
   }
 }
 
 // Usage
 const chart = new Chart("#chart svg");
 chart.init();
+
+export { chart };
